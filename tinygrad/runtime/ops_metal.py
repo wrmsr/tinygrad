@@ -55,9 +55,9 @@ def unwrap(x):
 
 class MetalProgram:
     def __init__(self, name: str, prg: str):
-        print(name)
-        print(prg)
-        print()
+        # print(name)
+        # print(prg)
+        # print()
 
         if METAL_XCODE:
             air = subprocess.check_output(['xcrun', '-sdk', 'macosx', 'metal', '-x', 'metal', '-c', '-', '-o', '-'],

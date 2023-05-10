@@ -1,19 +1,26 @@
 # ShapeTracker allows movement operations to a buffer that don't require a copy to be made.
 import functools
-from enum import Enum, auto
-from typing import Tuple, Union, List, Optional, Dict, Callable
-from tinygrad.helpers import prod, DEBUG
-from tinygrad.shape.symbolic import Variable, MulNode, NumNode, Node, SumNode, ModNode
+import enum
+import typing as ta
+
+from tinygrad.helpers import DEBUG
+from tinygrad.helpers import prod
+from tinygrad.shape.symbolic import ModNode
+from tinygrad.shape.symbolic import MulNode
+from tinygrad.shape.symbolic import Node
+from tinygrad.shape.symbolic import NumNode
+from tinygrad.shape.symbolic import SumNode
+from tinygrad.shape.symbolic import Variable
 
 
 # these ops live here
-class MovementOps(Enum):
-    RESHAPE = auto()
-    PERMUTE = auto()
-    EXPAND = auto()
-    PAD = auto()
-    SHRINK = auto()
-    STRIDE = auto()
+class MovementOps(enum.Enum):
+    RESHAPE = enum.auto()
+    PERMUTE = enum.auto()
+    EXPAND = enum.auto()
+    PAD = enum.auto()
+    SHRINK = enum.auto()
+    STRIDE = enum.auto()
 
 
 def check_no_mul(test, var):
@@ -27,7 +34,7 @@ def check_no_mul(test, var):
 
 
 @functools.lru_cache(maxsize=None)
-def to_shape_strides(shape: Tuple[int, ...], strides: Tuple[int, ...]) -> List[Tuple[int, int]]:
+def to_shape_strides(shape: ta.Tuple[int, ...], strides: ta.Tuple[int, ...]) -> ta.List[ta.Tuple[int, int]]:
     assert len(shape) == len(strides)
     ret = [(shape[0], strides[0])] if len(shape) > 0 else []
     for i in range(1, len(shape)):
@@ -42,17 +49,17 @@ def to_shape_strides(shape: Tuple[int, ...], strides: Tuple[int, ...]) -> List[T
 
 
 @functools.lru_cache(maxsize=None)
-def is_contiguous(shape: Tuple[int, ...], strides: Tuple[int, ...]) -> bool:
+def is_contiguous(shape: ta.Tuple[int, ...], strides: ta.Tuple[int, ...]) -> bool:
     return all(s1 == s2 or s == 1 for s, s1, s2 in zip(shape, strides, strides_for_shape(shape)))
 
 
 class View:
     def __init__(
         self,
-        shape: Tuple[int, ...],
-        strides: Tuple[int, ...],
+        shape: ta.Tuple[int, ...],
+        strides: ta.Tuple[int, ...],
         offset: int = 0,
-        mask: Optional[Tuple[Tuple[int, int], ...]] = None,
+        mask: ta.Optional[ta.Tuple[ta.Tuple[int, int], ...]] = None,
     ) -> None:
         self.shape, self.strides, self.offset = shape, tuple(
             stride if shp != 1 else 0 for stride, shp in zip(strides, shape)), offset
@@ -103,7 +110,7 @@ class View:
 
 
 @functools.lru_cache(maxsize=None)
-def strides_for_shape(shape: Tuple[int, ...]) -> Tuple[int, ...]:
+def strides_for_shape(shape: ta.Tuple[int, ...]) -> ta.Tuple[int, ...]:
     strides = [1]
     for d in shape[::-1][:-1]:
         strides = [d * strides[0]] + strides
@@ -111,13 +118,13 @@ def strides_for_shape(shape: Tuple[int, ...]) -> Tuple[int, ...]:
 
 
 @functools.lru_cache(maxsize=None)
-def view_from_shape(shape: Tuple[int, ...]) -> View:
+def view_from_shape(shape: ta.Tuple[int, ...]) -> View:
     assert all(isinstance(x, int) for x in shape) and len(shape) != 0
     return View(tuple(shape), strides_for_shape(shape))
 
 
 @functools.lru_cache(maxsize=None)
-def merge_views(vm2: View, vm1: View) -> Optional[View]:
+def merge_views(vm2: View, vm1: View) -> ta.Optional[View]:
     if vm2.mask:
         return None  # this isn't supported yet
     new_strides, new_offset = [], vm2.expr_node(Variable.num(vm1.offset))
@@ -142,10 +149,10 @@ def merge_views(vm2: View, vm1: View) -> Optional[View]:
 class ShapeTracker:
     def __init__(
         self,
-        shape: Union['ShapeTracker', Tuple[int, ...]],
-        views: Optional[List[View]] = None,
+        shape: ta.Union['ShapeTracker', ta.Tuple[int, ...]],
+        views: ta.Optional[ta.List[View]] = None,
     ) -> None:
-        self.views: List[View] = views if views is not None else (
+        self.views: ta.List[View] = views if views is not None else (
             shape.views[:] if isinstance(shape, ShapeTracker) else [view_from_shape(shape)]
         )
 
@@ -160,14 +167,14 @@ class ShapeTracker:
         return len(self.views) == 1 and self.views[-1].contiguous
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> ta.Tuple[int, ...]:
         return self.views[-1].shape
 
     # this is the real size (ish)
     def size(self):
         return prod([s for s, st in zip(self.shape, self.views[-1].strides) if st != 0])
 
-    def unit_stride_axes(self) -> List[int]:
+    def unit_stride_axes(self) -> ta.List[int]:
         ret, acc = [], 1
         for j, s in list(enumerate(self.shape))[::-1]:
             if s == 1:
@@ -211,7 +218,7 @@ class ShapeTracker:
 
     # *** under this line are the movement ops ***
 
-    def __unsafe_resize(self, arg: Tuple[Tuple[int, int], ...], mask=None):
+    def __unsafe_resize(self, arg: ta.Tuple[ta.Tuple[int, int], ...], mask=None):
         offset = sum([self.views[-1].strides[i] * x for i, (x, _) in enumerate(arg)])
         if self.views[-1].mask:
             # move the old mask
@@ -231,26 +238,31 @@ class ShapeTracker:
             mask,
         )
 
-    def pad(self, arg: Tuple[Tuple[int, int], ...]):
+    def pad(self, arg: ta.Tuple[ta.Tuple[int, int], ...]):
         assert all((b >= 0 and e >= 0) for b, e in arg) and len(arg) == len(self.shape)
         if all(b == 0 and e == 0 for b, e in arg):
             return self
         zvarg = tuple((-b, s + e) for s, (b, e) in zip(self.shape, arg))
         self.__unsafe_resize(zvarg, mask=tuple((b, s + b) for s, (b, _) in zip(self.shape, arg)))
 
-    def shrink(self, arg: Tuple[Tuple[int, int], ...]):
+    def shrink(self, arg: ta.Tuple[ta.Tuple[int, int], ...]):
         assert all((b >= 0 and e <= s) for s, (b, e) in zip(self.shape, arg)) and len(arg) == len(self.shape)
         self.__unsafe_resize(arg)
 
-    def expand(self, new_shape: Tuple[int, ...]):
-        assert all(isinstance(x, int) and (s == x or (s == 1 and st == 0)) for s, x, st in
-                   zip(self.shape, new_shape, self.views[-1].strides)), f"can't expand {self.shape} into {new_shape}"
+    def expand(self, new_shape: ta.Tuple[int, ...]):
+        assert all(
+            isinstance(x, int) and (s == x or (s == 1 and st == 0))
+            for s, x, st in zip(self.shape, new_shape, self.views[-1].strides)
+        ), f"can't expand {self.shape} into {new_shape}"
+
         # NOTE: can the mask ever be (0,0)?
-        mask = tuple((((0, 0) if m != (0, 1) else (0, ns)) if s != ns else m) for m, s, ns in
-                     zip(self.views[-1].mask, self.shape, new_shape)) if self.views[-1].mask else None
+        mask = tuple(
+            (((0, 0) if m != (0, 1) else (0, ns)) if s != ns else m)
+            for m, s, ns in zip(self.views[-1].mask, self.shape, new_shape)
+        ) if self.views[-1].mask else None
         self.views[-1] = View(new_shape, self.views[-1].strides, self.views[-1].offset, mask)
 
-    def reshape(self, new_shape: Tuple[int, ...]):
+    def reshape(self, new_shape: ta.Tuple[int, ...]):
         if self.shape == new_shape:
             return self
         assert all(
@@ -284,8 +296,8 @@ class ShapeTracker:
                     print(f"WARNING: creating new view with reshape {self} -> {new_shape}")
                 self.views.append(view)
 
-    def permute(self, axis: Tuple[int, ...]):
-        assert all(isinstance(x, int) and x >= 0 and x < len(self.shape) for x in axis), \
+    def permute(self, axis: ta.Tuple[int, ...]):
+        assert all(isinstance(x, int) and 0 <= x < len(self.shape) for x in axis), \
             f"invalid permute {axis} for {self.shape}"
         assert len(set(axis)) == len(axis) and len(axis) == len(self.shape), \
             f"can't permute {self.shape} with {axis}"
@@ -297,27 +309,30 @@ class ShapeTracker:
         )
 
     # except for the negative case, you can build this from the others. invertible in the negative case
-    def stride(self, mul: Tuple[int, ...]):
+    def stride(self, mul: ta.Tuple[int, ...]):
         assert all(isinstance(x, int) and x != 0 for x in mul), f"invalid stride {mul} for {self.shape}"
         strides = tuple(z * m for z, m in zip(self.views[-1].strides, mul))
         new_shape = tuple((s + (abs(m) - 1)) // abs(m) for s, m in zip(self.shape, mul))
         offset = sum([(s - 1) * z for s, z, m in zip(self.shape, self.views[-1].strides, mul) if m < 0])
         mask = tuple(
-            (((mx if m > 0 else s - my) + (abs(m) - 1)) // abs(m), ((my if m > 0 else s - mx) + (abs(m) - 1)) // abs(m))
+            (
+                ((mx if m > 0 else s - my) + (abs(m) - 1)) // abs(m),
+                ((my if m > 0 else s - mx) + (abs(m) - 1)) // abs(m),
+            )
             for (mx, my), s, m in zip(self.views[-1].mask, self.shape, mul)
         ) if self.views[-1].mask is not None else None
         self.views[-1] = View(new_shape, strides, self.views[-1].offset + offset, mask)
 
     # *** entry point for external ***
 
-    def movement_op(self, op, arg: Union[Tuple[int, ...], Tuple[Tuple[int, int], ...]]) -> ShapeTracker:
-        assert isinstance(arg, tuple) and (len(arg) == len(
-            self.shape) or op == MovementOps.RESHAPE), f"arg {arg} for {op} doesn't match dim of shape {self.shape}"
+    def movement_op(self, op, arg: ta.Union[ta.Tuple[int, ...], ta.Tuple[ta.Tuple[int, int], ...]]) -> 'ShapeTracker':
+        assert isinstance(arg, tuple) and (len(arg) == len(self.shape) or op == MovementOps.RESHAPE), \
+            f"arg {arg} for {op} doesn't match dim of shape {self.shape}"
         dispatch[op](self, arg)
         return self
 
 
-dispatch: Dict[MovementOps, Callable] = {
+dispatch: ta.Dict[MovementOps, ta.Callable] = {
     MovementOps.RESHAPE: ShapeTracker.reshape,
     MovementOps.EXPAND: ShapeTracker.expand,
     MovementOps.PAD: ShapeTracker.pad,
@@ -328,9 +343,9 @@ dispatch: Dict[MovementOps, Callable] = {
 
 
 # returns the axes to create new_shape if new_shape can be created by combining axis from old_shape
-def get_contraction(old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]) -> Optional[List[List[int]]]:
+def get_contraction(old_shape: ta.Tuple[int, ...], new_shape: ta.Tuple[int, ...]) -> ta.Optional[ta.List[ta.List[int]]]:
     # Pre-allocate all groups.
-    axis_groups: List[List[int]] = [[] for _ in range(len(new_shape))]
+    axis_groups: ta.List[ta.List[int]] = [[] for _ in range(len(new_shape))]
     # Index for new_shape and axis_groups.
     i: int = 0
     old_shape_i: int = 0

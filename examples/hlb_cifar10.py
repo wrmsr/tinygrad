@@ -22,23 +22,35 @@ class ConvGroup:
         self.short, self.se = short, se and not short
         self.conv = [
             nn.Conv2d(channels_in if i == 0 else channels_out, channels_out, kernel_size=3, padding=1, bias=False)
-            for i in range(1 if short else 3)]
-        self.norm = [nn.BatchNorm2d(channels_out, track_running_stats=False, eps=1e-12, momentum=0.8) for _ in
-                     range(1 if short else 3)]
+            for i in range(1 if short else 3)
+        ]
+        self.norm = [
+            nn.BatchNorm2d(channels_out, track_running_stats=False, eps=1e-12, momentum=0.8)
+            for _ in range(1 if short else 3)
+        ]
         if self.se:
-            self.se1, self.se2 = nn.Linear(channels_out, channels_out // 16), nn.Linear(channels_out // 16,
-                                                                                        channels_out)
+            self.se1 = nn.Linear(channels_out, channels_out // 16)
+            self.se2 = nn.Linear(channels_out // 16, channels_out)
 
     def __call__(self, x):
         x = self.conv[0](x).max_pool2d(2)
         x = self.norm[0](x).relu()
+
         if self.short:
             return x
+
         residual = x
-        mult = self.se2(self.se1(residual.mean((2, 3))).relu()).sigmoid().reshape(x.shape[0], x.shape[1], 1,
-                                                                                  1) if self.se else 1.0
+
+        if self.se:
+            mult = self.se2(self.se1(residual.mean((2, 3))).relu()) \
+                .sigmoid() \
+                .reshape(x.shape[0], x.shape[1], 1, 1)
+        else:
+            mult = 1.0
+
         x = self.norm[1](self.conv[1](x)).relu()
         x = self.norm[2](self.conv[2](x) * mult).relu()
+
         return x + residual
 
 
@@ -143,7 +155,14 @@ def train_cifar():
         loss_cpu = loss.numpy()[0]
         cl = time.monotonic()
         print(
-            f"{i:3d} {(cl - st) * 1000.0:7.2f} ms run, {(et - st) * 1000.0:7.2f} ms python, {(cl - et) * 1000.0:7.2f} ms CL, {loss_cpu:7.2f} loss, {GlobalCounters.mem_used / 1e9:.2f} GB used, {GlobalCounters.global_ops * 1e-9 / (cl - st):9.2f} GFLOPS")
+            f"{i:3d} "
+            f"{(cl - st) * 1000.0:7.2f} ms run, "
+            f"{(et - st) * 1000.0:7.2f} ms python, "
+            f"{(cl - et) * 1000.0:7.2f} ms CL, "
+            f"{loss_cpu:7.2f} loss, "
+            f"{GlobalCounters.mem_used / 1e9:.2f} GB used, "
+            f"{GlobalCounters.global_ops * 1e-9 / (cl - st):9.2f} GFLOPS"
+        )
 
     # train(model, X, Y, optimizer, steps=X.shape[0]//BS, BS=BS)
     # evaluate(model, X_test, Y_test)
