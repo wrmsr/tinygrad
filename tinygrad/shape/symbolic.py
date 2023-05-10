@@ -1,12 +1,14 @@
-from __future__ import annotations
-import math, itertools, functools
-from typing import List, Dict, Callable, Type, Union
-from tinygrad.helpers import partition, all_same
+import math
+import itertools
+import functools
+import typing as ta
+
+from tinygrad.helpers import partition
+from tinygrad.helpers import all_same
 
 
-# NOTE: Python has different behavior for negative mod and floor div than c
-# symbolic matches the Python behavior, but the code output is agnostic, and will never have negative numbers in div or
-# mod
+# NOTE: Python has different behavior for negative mod and floor div than c symbolic matches the Python behavior, but
+# the code output is agnostic, and will never have negative numbers in div or mod
 
 
 class Node:
@@ -35,10 +37,10 @@ class Node:
     def __neg__(self):
         return self * -1
 
-    def __add__(self, b: Union[Node, int]):
+    def __add__(self, b: ta.Union['Node', int]):
         return Variable.sum([self, b if isinstance(b, Node) else Variable.num(b)])
 
-    def __sub__(self, b: Union[Node, int]):
+    def __sub__(self, b: ta.Union['Node', int]):
         return self + -b
 
     def __ge__(self, b: int):
@@ -79,24 +81,31 @@ class Node:
         # this is a hack to make div work with boolean nodes. TODO: make generic
         if isinstance(self, GeNode):
             return (self.a // b) >= (self.b // b)
+
         if isinstance(self, LtNode):
             return (self.a // b) < (self.b // b)
+
         if isinstance(self, AndNode):
             return Variable.ands([x // b for x in self.nodes])
 
         if isinstance(self, ModNode) and self.b % b == 0:
             return (self.a // b) % (self.b // b)  # put the div inside mod
+
         if isinstance(self, DivNode):
             return self.a // (self.b * b)  # two divs is one div
+
         if isinstance(self, MulNode) and self.b % b == 0:
             return self.a * (self.b // b)
+
         if isinstance(self, MulNode) and b % self.b == 0 and self.b > 0:
             return self.a // (b // self.b)  # NOTE: mod negative isn't handled right
+
         if isinstance(self, SumNode) and factoring_allowed:
             factors, tmp_nofactor = partition(
                 self.nodes,
                 lambda x: (isinstance(x, (MulNode, NumNode))) and x.b % b == 0,
             )
+
             nofactor = []
             # ugh, i doubt this is universally right
             for x in tmp_nofactor:
@@ -106,6 +115,7 @@ class Node:
                     nofactor.append(Variable.num(x.b % b))
                 else:
                     nofactor.append(x)
+
             gcd = [math.gcd(x.b, b) if isinstance(x, (MulNode, NumNode)) else None for x in nofactor]
             if len(factors) > 0:
                 # these don't have to be the same, just having a common factor
@@ -116,26 +126,31 @@ class Node:
                     ]) // (b // gcd[0])
                 else:
                     nofactor_term = Variable.sum(nofactor) // b
+
                 return Variable.sum(
                     [(x.a * (x.b // b)) if isinstance(x, MulNode) else Variable.num(x.b // b) for x in factors] +
                     [nofactor_term]
                 )
+
             else:
                 muls = [x.b for x in nofactor if isinstance(x, MulNode)]
                 for m in muls:
                     if m > 1 and b % m == 0:
                         return (self // m) // (b // m)
+
         # the numerator of div is not allowed to be negative
         if self.min < 0:
             offset = self.min // b
             # factor out an "offset" to make the numerator positive. don't allowing factoring again
             return (self + -offset * b).__floordiv__(b, factoring_allowed=False) + offset
+
         return create_opnode(DivNode, self, b)
 
     def __mod__(self, b: int):
         assert b > 0
         if b == 1:
             return NumNode(0)
+
         if isinstance(self, SumNode):
             new_nodes = []
             for x in self.nodes:
@@ -146,22 +161,27 @@ class Node:
                 else:
                     new_nodes.append(x)
             a = Variable.sum(new_nodes)
+
         elif isinstance(self, MulNode):
             a = self.a * (self.b % b)
+
         else:
             a = self
+
         if a.min >= 0 and a.max < b:
             return a
+
         if a.min < 0:
             return (a - ((a.min // b) * b)) % b
+
         return create_opnode(ModNode, a, b)
 
     @staticmethod
-    def num(num: int) -> Node:
+    def num(num: int) -> 'Node':
         return NumNode(num)
 
     @staticmethod
-    def sum(nodes: List[Node]) -> Node:
+    def sum(nodes: ta.List['Node']) -> 'Node':
         # expand any sums inside one sum
         if any([isinstance(x, SumNode) for x in nodes]):
             nodes, sum_nodes = partition(nodes, lambda x: not isinstance(x, SumNode))
@@ -186,13 +206,18 @@ class Node:
         return create_rednode(SumNode, nodes) if len(nodes) > 1 else (nodes[0] if len(nodes) == 1 else NumNode(0))
 
     @staticmethod
-    def ands(nodes: List[Node]) -> Node:
+    def ands(nodes: ta.List['Node']) -> 'Node':
         if any((x.min == 0 and x.max == 0) for x in nodes):
             return NumNode(0)
 
         # filter 1s
         nodes = [x for x in nodes if x.min != x.max]
-        return create_rednode(AndNode, nodes) if len(nodes) > 1 else (nodes[0] if len(nodes) == 1 else NumNode(1))
+        if len(nodes) > 1:
+            return create_rednode(AndNode, nodes)
+        elif len(nodes) == 1:
+            return nodes[0]
+        else:
+            return NumNode(1)
 
 
 # 4 basic node types
@@ -204,13 +229,17 @@ class Variable(Node):
             return NumNode(nmin)
         return super().__new__(cls)
 
-    def __init__(self, expr: str, nmin: int, nmax: int):
+    def __init__(self, expr: str, nmin: int, nmax: int) -> None:
+        super().__init__()
         self.expr, self.min, self.max = expr, nmin, nmax
 
 
 class NumNode(Node):
     def __init__(self, num: int):
-        self.b, self.min, self.max = num, num, num
+        super().__init__()
+        self.b = num
+        self.min = num
+        self.max = num
 
 
 def create_node(ret: Node):
@@ -244,7 +273,7 @@ class ModNode(OpNode):
     pass
 
 
-def create_opnode(typ: Type[OpNode], a: Node, b: int):
+def create_opnode(typ: ta.Type[OpNode], a: Node, b: int):
     ret = typ(a, b)
     if typ == GeNode:
         ret.min, ret.max = int(a.min >= b), int(a.max >= b)
@@ -263,7 +292,7 @@ def create_opnode(typ: Type[OpNode], a: Node, b: int):
 
 
 class RedNode(Node):
-    def __init__(self, nodes: List[Node]): self.nodes = nodes
+    def __init__(self, nodes: ta.List[Node]): self.nodes = nodes
 
 
 class SumNode(RedNode):
@@ -274,7 +303,7 @@ class AndNode(RedNode):
     pass
 
 
-def create_rednode(typ: Type[RedNode], nodes: List[Node]):
+def create_rednode(typ: ta.Type[RedNode], nodes: ta.List[Node]):
     ret = typ(nodes)
     if typ == SumNode:
         ret.min, ret.max = (sum([x.min for x in nodes]), sum([x.max for x in nodes]))
@@ -283,7 +312,7 @@ def create_rednode(typ: Type[RedNode], nodes: List[Node]):
     return create_node(ret)
 
 
-render_python: Dict[Type, Callable] = {
+render_python: ta.Dict[ta.Type, ta.Callable] = {
     Variable: lambda self, ops, ctx: f"{self.expr}[{self.min}-{self.max}]" if ctx == "DEBUG" else f"{self.expr}",
     NumNode: lambda self, ops, ctx: f"{self.b}",
     MulNode: lambda self, ops, ctx: f"({self.a.render(ops, ctx)}*{self.b})",

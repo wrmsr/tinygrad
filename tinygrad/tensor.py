@@ -1,28 +1,41 @@
 # inspired by https://github.com/karpathy/micrograd/blob/master/micrograd/engine.py
 import typing as ta
-import math, functools, itertools
+import math
+import functools
+import itertools
+
 import numpy as np
-from typing import List, Tuple, Callable, Optional, ClassVar, Type, Union, Sequence
-from tinygrad.helpers import prod, argfix, make_pair, getenv, IMAGE, DEBUG, flatten, DType, dtypes, LazyNumpyArray
-from tinygrad.lazy import Device, LazyBuffer
-import tinygrad.mlops as mlops
+
+from tinygrad.helpers import DEBUG
+from tinygrad.helpers import DType
+from tinygrad.helpers import IMAGE
+from tinygrad.helpers import LazyNumpyArray
+from tinygrad.helpers import argfix
+from tinygrad.helpers import dtypes
+from tinygrad.helpers import flatten
+from tinygrad.helpers import getenv
+from tinygrad.helpers import make_pair
+from tinygrad.helpers import prod
+from tinygrad.lazy import Device
+from tinygrad.lazy import LazyBuffer
 from tinygrad.mlops import Function
+import tinygrad.mlops as mlops
 
 
 # **** start with two base classes, Tensor and Function ****
 
 class Tensor:
     __deletable__ = ('_ctx',)
-    training: ClassVar[bool] = False
-    no_grad: ClassVar[bool] = False
-    default_type: ClassVar[DType] = dtypes.float32
+    training: ta.ClassVar[bool] = False
+    no_grad: ta.ClassVar[bool] = False
+    default_type: ta.ClassVar[DType] = dtypes.float32
 
     def __init__(
         self,
-        data: Union[list, LazyBuffer, LazyNumpyArray, np.ndarray],
+        data: ta.Union[list, LazyBuffer, LazyNumpyArray, np.ndarray],
         device=Device.DEFAULT,
-        dtype: Optional[DType] = None,
-        requires_grad: Optional[bool] = None,
+        dtype: ta.Optional[DType] = None,
+        requires_grad: ta.Optional[bool] = None,
     ) -> None:
         device = device.upper().replace(":0", "")  # canonicalize device
 
@@ -51,14 +64,14 @@ class Tensor:
         self.lazydata: LazyBuffer = lazydata
 
         # tensors have gradients, buffers do not
-        self.grad: Optional[Tensor] = None
+        self.grad: ta.Optional[Tensor] = None
 
         # NOTE: this can be in three states. False and None: no gradient, True: gradient
         # None (the default) will be updated to True if it's put in an optimizer
-        self.requires_grad: Optional[bool] = requires_grad
+        self.requires_grad: ta.Optional[bool] = requires_grad
 
         # internal variables used for autograd graph construction
-        self._ctx: Optional[Function] = None
+        self._ctx: ta.Optional[Function] = None
 
     def __repr__(self):
         return (
@@ -78,7 +91,7 @@ class Tensor:
         return self.lazydata.device
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> ta.Tuple[int, ...]:
         return self.lazydata.shape
 
     @property
@@ -161,7 +174,7 @@ class Tensor:
     # ***** (numpy) rng helper functions *****
     # TODO: move randomness generation out of numpy
 
-    _rng: ClassVar[np.random.Generator] = np.random.default_rng()
+    _rng: ta.ClassVar[np.random.Generator] = np.random.default_rng()
 
     @staticmethod
     def manual_seed(seed=None):
@@ -263,19 +276,21 @@ class Tensor:
     def flip(self, axis, *args) -> 'Tensor':
         return mlops.Flip.apply(self, axis=[x if x >= 0 else x + len(self.shape) for x in argfix(axis, *args)])
 
-    def pad(self, arg: Tuple[Tuple[int, int], ...]) -> 'Tensor':
+    def pad(self, arg: ta.Tuple[ta.Tuple[int, int], ...]) -> 'Tensor':
         return mlops.Pad.apply(self, arg=arg) if any(x != (0, 0) for x in arg) else self
 
-    def shrink(self, arg: Tuple[Tuple[int, int], ...]) -> 'Tensor':
+    def shrink(self, arg: ta.Tuple[ta.Tuple[int, int], ...]) -> 'Tensor':
         return mlops.Shrink.apply(self, arg=arg) if any(x != (0, s) for x, s in zip(arg, self.shape)) else self
 
     # ***** movement hlops *****
 
     # NOTE: using slice is discouraged and things should migrate to pad and shrink
-    def slice(self, arg: Sequence[Optional[Tuple[int, int]]]) -> 'Tensor':
+    def slice(self, arg: ta.Sequence[ta.Optional[ta.Tuple[int, int]]]) -> 'Tensor':
         arg_ = tuple(a if a is not None else (0, s) for s, a in zip(self.shape, arg))
         padding = tuple((max(0, -p[0]), max(0, p[1] - self.shape[i])) for i, p in enumerate(arg_))
-        return self.pad(padding).shrink(tuple((p[0] + padding[i][0], p[1] + padding[i][0]) for i, p in enumerate(arg_)))
+        return self\
+            .pad(padding)\
+            .shrink(tuple((p[0] + padding[i][0], p[1] + padding[i][0]) for i, p in enumerate(arg_)))
 
     # Tensors mostly follow the normal python indexing / slicing behavior for sequences
     # - Negative indices are taken relative to the end of the sequence, so X[-2] returns the 2nd-to-last element
@@ -357,7 +372,7 @@ class Tensor:
         return self.reshape(self.shape[:dim] + (1,) + self.shape[dim:])
 
     # (padding_left, padding_right, padding_top, padding_bottom)
-    def pad2d(self, padding: Union[List[int], Tuple[int, ...]]):
+    def pad2d(self, padding: ta.Union[ta.List[int], ta.Tuple[int, ...]]):
         return self.slice((
             (0, self.shape[0]),
             (0, self.shape[1]),
@@ -379,8 +394,8 @@ class Tensor:
 
     # ***** reduce ops *****
 
-    def _reduce(self, fxn: Type[Function], axis: Optional[Union[int, Tuple[int, ...]]] = None, keepdim=False):
-        axis_: List[int] = list(range(len(self.shape))) \
+    def _reduce(self, fxn: ta.Type[Function], axis: ta.Optional[ta.Union[int, ta.Tuple[int, ...]]] = None, keepdim=False):
+        axis_: ta.List[int] = list(range(len(self.shape))) \
             if axis is None else ([axis] if isinstance(axis, int) else list(axis))
         axis_ = [x if x >= 0 else x + len(self.shape) for x in axis_]
         shape = [self.shape[i] for i in range(len(self.shape)) if i not in axis_]
@@ -417,9 +432,9 @@ class Tensor:
 
     def _pool(
         self,
-        k_: Tuple[int, ...],
-        stride: Union[Tuple[int, ...], int] = 1,
-        dilation: Union[Tuple[int, ...], int] = 1,
+        k_: ta.Tuple[int, ...],
+        stride: ta.Union[ta.Tuple[int, ...], int] = 1,
+        dilation: ta.Union[ta.Tuple[int, ...], int] = 1,
         _insert_dims=tuple(),
     ) -> 'Tensor':
         assert len(self.shape) >= len(k_), f"can't pool {self.shape} with {k_}"
@@ -488,7 +503,7 @@ class Tensor:
     def conv2d(
         self,
         weight: 'Tensor',
-        bias: Optional['Tensor'] = None,
+        bias: ta.Optional['Tensor'] = None,
         groups=1,
         stride=1,
         dilation=1,
@@ -626,8 +641,8 @@ class Tensor:
 
     def _broadcasted(
         self,
-        fxn: Type[Function],
-        other: Union['Tensor', float],
+        fxn: ta.Type[Function],
+        other: ta.Union['Tensor', float],
         reverse: bool = False,
     ) -> 'Tensor':
         x, y = [
@@ -642,28 +657,28 @@ class Tensor:
         shape_ret = tuple(max(sx, sy) for sx, sy in zip(x.shape, y.shape))
         return fxn.apply(x.expand(shape_ret), y.expand(shape_ret))
 
-    def add(self, x: Union['Tensor', float], reverse=False) -> 'Tensor':
+    def add(self, x: ta.Union['Tensor', float], reverse=False) -> 'Tensor':
         return self._broadcasted(mlops.Add, x, reverse) if isinstance(x, Tensor) or x != 0.0 else self
 
-    def sub(self, x: Union['Tensor', float], reverse=False) -> 'Tensor':
+    def sub(self, x: ta.Union['Tensor', float], reverse=False) -> 'Tensor':
         return self._broadcasted(mlops.Sub, x, reverse) if isinstance(x, Tensor) or x != 0.0 or reverse else self
 
-    def mul(self, x: Union['Tensor', float], reverse=False) -> 'Tensor':
+    def mul(self, x: ta.Union['Tensor', float], reverse=False) -> 'Tensor':
         return self._broadcasted(mlops.Mul, x, reverse) if isinstance(x, Tensor) or x != 1.0 else self
 
-    def pow(self, x: Union['Tensor', float], reverse=False) -> 'Tensor':
+    def pow(self, x: ta.Union['Tensor', float], reverse=False) -> 'Tensor':
         return self._broadcasted(mlops.Pow, x, reverse) if isinstance(x, Tensor) or x != 1.0 or reverse else self
 
-    def div(self, x: Union['Tensor', float], reverse=False) -> 'Tensor':
+    def div(self, x: ta.Union['Tensor', float], reverse=False) -> 'Tensor':
         return self._broadcasted(mlops.Div, x, reverse) if isinstance(x, Tensor) or reverse else self.mul(1 / x)
 
     def matmul(self, x: 'Tensor', reverse=False) -> 'Tensor':
         return x.dot(self) if reverse else self.dot(x)
 
-    def maximum(self, x: Union['Tensor', float]) -> 'Tensor':
+    def maximum(self, x: ta.Union['Tensor', float]) -> 'Tensor':
         return self._broadcasted(mlops.Maximum, x)
 
-    def minimum(self, x: Union['Tensor', float]) -> 'Tensor':
+    def minimum(self, x: ta.Union['Tensor', float]) -> 'Tensor':
         return -((-self).maximum(-x))
 
     def eq(self, x) -> 'Tensor':
@@ -743,11 +758,11 @@ class Tensor:
 
     # ***** functional nn ops *****
 
-    def linear(self, weight: 'Tensor', bias: Optional['Tensor'] = None):
+    def linear(self, weight: 'Tensor', bias: ta.Optional['Tensor'] = None):
         x = self.mul(weight) if len(weight.shape) == 1 else self.dot(weight)
         return x.add(bias) if bias is not None else x
 
-    def sequential(self, ll: List[Callable[['Tensor'], 'Tensor']]):
+    def sequential(self, ll: ta.List[ta.Callable[['Tensor'], 'Tensor']]):
         return functools.reduce(lambda x, f: f(x), ll, self)
 
     def layernorm(self, axis=-1, eps: float = 1e-5) -> 'Tensor':
@@ -756,8 +771,8 @@ class Tensor:
 
     def batchnorm(
         self,
-        weight: Optional['Tensor'],
-        bias: Optional['Tensor'],
+        weight: ta.Optional['Tensor'],
+        bias: ta.Optional['Tensor'],
         mean: 'Tensor',
         invstd: 'Tensor',
     ) -> 'Tensor':
@@ -796,7 +811,6 @@ for device in Device._buffers:
 
 # if IMAGE>0 we install these replacement functions in Tensor (hack!)
 from tinygrad.nn.image import image_conv2d, image_dot
-
 
 if IMAGE:
     setattr(Tensor, "conv2d", image_conv2d)

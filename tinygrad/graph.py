@@ -4,7 +4,6 @@ import itertools
 import os
 import typing as ta
 
-
 try:
     import networkx as nx  # type: ignore
 except ImportError:

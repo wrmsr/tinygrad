@@ -1,5 +1,4 @@
 # ShapeTracker allows movement operations to a buffer that don't require a copy to be made.
-from __future__ import annotations
 import functools
 from enum import Enum, auto
 from typing import Tuple, Union, List, Optional, Dict, Callable
@@ -143,7 +142,7 @@ def merge_views(vm2: View, vm1: View) -> Optional[View]:
 class ShapeTracker:
     def __init__(
         self,
-        shape: Union[ShapeTracker, Tuple[int, ...]],
+        shape: Union['ShapeTracker', Tuple[int, ...]],
         views: Optional[List[View]] = None,
     ) -> None:
         self.views: List[View] = views if views is not None else (
@@ -153,7 +152,7 @@ class ShapeTracker:
     def __repr__(self):
         return f"ShapeTracker(shape={self.shape}, views={self.views})"
 
-    def copy(self) -> ShapeTracker:
+    def copy(self) -> 'ShapeTracker':
         return ShapeTracker(self.shape, self.views[:])
 
     @property
