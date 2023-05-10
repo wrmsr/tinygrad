@@ -28,7 +28,7 @@ class SGD(Optimizer):
     def __init__(self, params: List[Tensor], lr=0.001, momentum=0, nesterov=False) -> None:
         super().__init__(params)
         self.lr = lr
-        self.momentum = momentum, nesterov
+        self.momentum = momentum
         self.nesterov = nesterov
         self.b = [
             Tensor.zeros(*t.shape, device=t.device, requires_grad=False)
