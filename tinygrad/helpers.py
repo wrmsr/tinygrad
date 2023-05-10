@@ -62,7 +62,8 @@ def getenv(key, default=0):
     return type(default)(os.getenv(key, default))
 
 
-DEBUG, IMAGE = getenv("DEBUG", 0), getenv("IMAGE", 0)
+DEBUG = getenv("DEBUG", 2)
+IMAGE = getenv("IMAGE", 0)
 
 
 # **** tinygrad now supports dtypes! *****
