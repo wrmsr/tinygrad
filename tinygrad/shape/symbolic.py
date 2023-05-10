@@ -177,7 +177,7 @@ class Node:
         return create_opnode(ModNode, a, b)
 
     @staticmethod
-    def num(num: int) -> 'Node':
+    def num(num: int) -> 'NumNode':
         return NumNode(num)
 
     @staticmethod

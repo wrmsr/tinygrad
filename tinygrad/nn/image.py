@@ -1,5 +1,10 @@
 import numpy as np
-from tinygrad.helpers import prod, IMAGE, ImageDType, getenv, dtypes
+
+from tinygrad.helpers import IMAGE
+from tinygrad.helpers import ImageDType
+from tinygrad.helpers import dtypes
+from tinygrad.helpers import getenv
+from tinygrad.helpers import prod
 from tinygrad.lazy import get_single_root
 
 

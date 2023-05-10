@@ -1,17 +1,19 @@
-# sorted in order of increasing complexity
-from typing import List, Dict
+import typing as ta
+
 from tinygrad.tensor import Tensor
 
 
 class Optimizer:
-    def __init__(self, params: List[Tensor]):
+    def __init__(self, params: ta.List[Tensor]) -> None:
+        super().__init__()
+
         # if it's None, but being put into an optimizer, set it to True
         for x in params:
             if x.requires_grad is None:
                 x.requires_grad = True
 
-        self.params: List[Tensor] = [x for x in params if x.requires_grad]
-        self.buffers: List[Tensor] = [x for x in params if not x.requires_grad]  # buffers are still realized
+        self.params: ta.List[Tensor] = [x for x in params if x.requires_grad]
+        self.buffers: ta.List[Tensor] = [x for x in params if not x.requires_grad]  # buffers are still realized
 
     def zero_grad(self):
         for param in self.params:
@@ -25,8 +27,15 @@ class Optimizer:
 
 
 class SGD(Optimizer):
-    def __init__(self, params: List[Tensor], lr=0.001, momentum=0, nesterov=False) -> None:
+    def __init__(
+        self,
+        params: ta.List[Tensor],
+        lr=0.001,
+        momentum=0,
+        nesterov=False,
+    ) -> None:
         super().__init__(params)
+
         self.lr = lr
         self.momentum = momentum
         self.nesterov = nesterov
@@ -49,11 +58,24 @@ class SGD(Optimizer):
 
 
 class AdamW(Optimizer):
-    def __init__(self, params: List[Tensor], lr=0.001, b1=0.9, b2=0.999, eps=1e-8, wd=0.01):
+    def __init__(
+        self,
+        params: ta.List[Tensor],
+        lr=0.001,
+        b1=0.9,
+        b2=0.999,
+        eps=1e-8,
+        wd=0.01,
+    ) -> None:
         super().__init__(params)
+
         # NOTE: self.t is a tensor so Adam can be jitted
-        self.lr, self.b1, self.b2, self.eps, self.wd, self.t = lr, b1, b2, eps, wd, Tensor([0],
-                                                                                           requires_grad=False).realize()
+        self.lr = lr
+        self.b1 = b1
+        self.b2 = b2
+        self.eps = eps
+        self.wd = wd
+        self.t = Tensor([0], requires_grad=False).realize()
 
         self.m = [Tensor.zeros(*t.shape, device=t.device, requires_grad=False) for t in self.params]
         self.v = [Tensor.zeros(*t.shape, device=t.device, requires_grad=False) for t in self.params]
@@ -70,11 +92,11 @@ class AdamW(Optimizer):
         self.realize([self.t] + self.m + self.v)
 
 
-def Adam(params: List[Tensor], lr=0.001, b1=0.9, b2=0.999, eps=1e-8):
+def Adam(params: ta.List[Tensor], lr=0.001, b1=0.9, b2=0.999, eps=1e-8):
     return AdamW(params, lr, b1, b2, eps, 0.0)
 
 
-def get_state_dict(obj, prefix: str = '') -> Dict[str, Tensor]:
+def get_state_dict(obj, prefix: str = '') -> ta.Dict[str, Tensor]:
     if isinstance(obj, Tensor):
         return {prefix.strip('.'): obj}
     if hasattr(obj, '__dict__'):
@@ -89,5 +111,5 @@ def get_state_dict(obj, prefix: str = '') -> Dict[str, Tensor]:
     return state_dict
 
 
-def get_parameters(obj) -> List[Tensor]:
+def get_parameters(obj) -> ta.List[Tensor]:
     return list(get_state_dict(obj).values())

@@ -1,11 +1,33 @@
-from typing import Final, Dict, Callable, ClassVar, List, Optional, NamedTuple, DefaultDict, Tuple, Set, Union
-import math, collections
-from tinygrad.codegen.linearizer import Linearizer, UOps, UOp, LocalBuffer, LocalTypes
-from tinygrad.ops import ASTRunner, Op, UnaryOps, BinaryOps, FusedOps
-from tinygrad.helpers import getenv, partition, ImageDType, DEBUG, dtypes, colored
-from tinygrad.runtime.lib import RawConst
-from tinygrad.shape.symbolic import DivNode, AndNode, render_python, NumNode, Variable, Node, SumNode, MulNode
+import collections
+import math
+import typing as ta
+
+from tinygrad.codegen.linearizer import Linearizer
+from tinygrad.codegen.linearizer import LocalBuffer
+from tinygrad.codegen.linearizer import LocalTypes
+from tinygrad.codegen.linearizer import UOp
+from tinygrad.codegen.linearizer import UOps
+from tinygrad.helpers import DEBUG
+from tinygrad.helpers import ImageDType
+from tinygrad.helpers import colored
+from tinygrad.helpers import dtypes
+from tinygrad.helpers import getenv
+from tinygrad.helpers import partition
 from tinygrad.lazy import LazyBuffer
+from tinygrad.ops import ASTRunner
+from tinygrad.ops import BinaryOps
+from tinygrad.ops import FusedOps
+from tinygrad.ops import Op
+from tinygrad.ops import UnaryOps
+from tinygrad.runtime.lib import RawConst
+from tinygrad.shape.symbolic import AndNode
+from tinygrad.shape.symbolic import DivNode
+from tinygrad.shape.symbolic import MulNode
+from tinygrad.shape.symbolic import Node
+from tinygrad.shape.symbolic import NumNode
+from tinygrad.shape.symbolic import SumNode
+from tinygrad.shape.symbolic import Variable
+from tinygrad.shape.symbolic import render_python
 
 
 # div is different in cl than python
@@ -16,21 +38,26 @@ render_cl[AndNode] = lambda self, ops, ctx: f"({'&&'.join(sorted([x.render(ops, 
 NATIVE_EXPLOG = getenv("NATIVE_EXPLOG", 0)  # this is needed as a switch for the tests to pass
 
 
-class CStyleLanguage(NamedTuple):
+class CStyleLanguage(ta.NamedTuple):
     kernel_prefix: str = ""
     buffer_prefix: str = ""
     buffer_suffix: str = ""
     smem_prefix: str = ""
     barrier: str = ""
-    gid: List[str] = []
-    lid: List[str] = []
-    extra_args: List[str] = []
-    float4: Optional[str] = None
-    half_prekernel: Optional[str] = None
+    gid: ta.List[str] = []
+    lid: ta.List[str] = []
+    extra_args: ta.List[str] = []
+    float4: ta.Optional[str] = None
+    half_prekernel: ta.Optional[str] = None
     uses_vload: bool = False
 
 
-def to_image_idx(base_shape: Tuple[int, ...], idxy: Node, valid: Node, validhacks=False) -> Tuple[Node, Node]:
+def to_image_idx(
+    base_shape: ta.Tuple[int, ...],
+    idxy: Node,
+    valid: Node,
+    validhacks=False,
+) -> ta.Tuple[Node, Node]:
     idy = (idxy // (4 * base_shape[1]))
     if validhacks and valid.min == 0:
         idx = (idxy // 4) + (idy * -base_shape[1])
@@ -52,7 +79,7 @@ def to_image_idx(base_shape: Tuple[int, ...], idxy: Node, valid: Node, validhack
     return idx, idy
 
 
-code_for_op: Final[Dict[Op, Callable]] = {
+code_for_op: ta.Final[ta.Dict[Op, ta.Callable]] = {
     UnaryOps.EXP: lambda x: f"native_exp({x})" if NATIVE_EXPLOG else f"exp({x})",
     UnaryOps.LOG: lambda x: f"native_log({x})" if NATIVE_EXPLOG else f"log({x})",
     BinaryOps.ADD: lambda a, b: f"({a}+{b})", BinaryOps.SUB: lambda a, b: f"({a}-{b})",
@@ -62,9 +89,12 @@ code_for_op: Final[Dict[Op, Callable]] = {
 }
 
 
-def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], lang: CStyleLanguage) -> Tuple[
-    str, List[int], List[int]]:
-    prekernel: Set[str] = set()
+def uops_to_cstyle(
+    uops: ta.List[UOp],
+    bufs: ta.List[ta.Union[LocalBuffer, LazyBuffer]],
+    lang: CStyleLanguage,
+) -> ta.Tuple[str, ta.List[int], ta.List[int]]:
+    prekernel: ta.Set[str] = set()
     kernel = []
     global_size = []
     local_size = []
@@ -110,6 +140,7 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
                     else:
                         kk(f"for (int {var.expr} = {var.min}; {var.expr} <= {var.max}; ++{var.expr}) {{")
             depth += 1
+
         elif uop == UOps.ENDLOOP:
             if args[1] == "local" and len(lang.lid):
                 # TODO: this is a bit of a hack. the local loop isn't real on the GPU
@@ -123,6 +154,7 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
                     pend_close = None
                 depth -= 1
                 kk("}" * len(args[0]) + f" /* {args[1]} */")
+
         elif uop == UOps.CONST:
             assert newvar is not None
             if args == -math.inf:
@@ -131,12 +163,14 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
                 kk(f"{newvar.render(True)} = {{ {args}f, {args}f, {args}f, {args}f }};")
             else:
                 kk(f"{newvar.render(True)} = {args}f;")
+
         elif uop == UOps.ALU:
             assert newvar is not None
             if newvar in vin:
                 kk(f"{newvar.render()} = {code_for_op[args](*[x.render() for x in vin])};")
             else:
                 kk(f"{newvar.render(True)} = {code_for_op[args](*[x.render() for x in vin])};")
+
         elif uop == UOps.LOAD and newvar is not None and newvar.ltype == LocalTypes.float:
             assert not isinstance(bufs[args.i].dtype, ImageDType), "image load must be float4"
             # TODO: merge with CONST?
@@ -153,6 +187,7 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
                 kk(f"float {newvar.name} = {val};")
             else:
                 kk(f"float {newvar.name} = ({args.valid.render(render_cl)}) ? ({val}) : 0.0f;")
+
         elif uop == UOps.LOAD and newvar is not None and newvar.ltype == LocalTypes.float4:
             assert newvar.offset is None, "load can't have an offset"
             if isinstance(bufs[args.i].dtype, ImageDType):
@@ -168,6 +203,7 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
             else:
                 kk(
                     f"{newvar.render(True)} = ({args.valid.render(render_cl)}) ? ({val}) : {lang.float4}(0.0f, 0.0f, 0.0f, 0.0f);")
+
         elif uop == UOps.STORE and (
             vin[0].ltype == LocalTypes.float or (vin[0].ltype == LocalTypes.float4 and vin[0].offset is not None)):
             assert not isinstance(bufs[args.i].dtype, ImageDType), "image store must be float4"
@@ -176,8 +212,10 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
                 kk(f"vstore_half({vin[0].render()}, {args.idx.render(render_cl)}, {bufnames[args.i]});")
             else:
                 kk(f"{bufnames[args.i]}[{args.idx.render(render_cl)}] = {vin[0].render()};")
+
         elif uop == UOps.CAST and newvar is not None and newvar.ltype == LocalTypes.float4:
             kk(f"{newvar.render(True)} = {lang.float4}({','.join([x.render() for x in vin])});")
+
         elif uop == UOps.STORE and len(vin) != 0 and vin[0].ltype == LocalTypes.float4 and vin[0].offset is None:
             assert args.valid.min == 1, "store must be valid"
             if isinstance(bufs[args[0]].dtype, ImageDType):
@@ -187,8 +225,10 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
             else:
                 kk(
                     f"(({lang.smem_prefix if isinstance(bufs[args.i], LocalBuffer) else lang.buffer_prefix}float4*){bufnames[args.i]})[{(args.idx // 4).render(render_cl)}] = {vin[0].render()};")
+
         elif uop == UOps.DEFINE_LOCAL:
             kk(lang.smem_prefix + f"float {args[0]}[{args[1]}];")
+
         else:
             raise RuntimeError(f"failed to render {uop}")
 
@@ -215,13 +255,13 @@ def uops_to_cstyle(uops: List[UOp], bufs: List[Union[LocalBuffer, LazyBuffer]], 
 
 
 class CStyleCodegen(Linearizer):
-    lang: ClassVar[CStyleLanguage] = CStyleLanguage()
+    lang: ta.ClassVar[CStyleLanguage] = CStyleLanguage()
     supports_constant_folding: bool = True
     supports_float4: bool = True
 
     # for renaming
-    kernel_cnt: Final[DefaultDict[str, int]] = collections.defaultdict(int)
-    kernel_name_cache: Final[Dict[str, Tuple[str, str]]] = {}
+    kernel_cnt: ta.Final[ta.DefaultDict[str, int]] = collections.defaultdict(int)
+    kernel_name_cache: ta.Final[ta.Dict[str, ta.Tuple[str, str]]] = {}
 
     def codegen(self):
         self.process()
