@@ -64,6 +64,8 @@ class View:
         self.shape, self.strides, self.offset = shape, tuple(
             stride if shp != 1 else 0 for stride, shp in zip(strides, shape)), offset
         self.mask = mask
+        # if mask:
+        #     breakpoint()
         self.shape_strides = to_shape_strides(self.shape, self.strides)
         self.contiguous: bool = self.offset == 0 and is_contiguous(self.shape, self.strides) and mask is None
 

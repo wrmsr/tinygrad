@@ -90,12 +90,27 @@ def get_lazyops(op: LazyOp) -> ta.List[LazyOp]:
 
 
 def map_buffers(real_srcs: ta.Dict[ta.Any, ta.Any], x: ta.Any) -> LazyOp:
-    if len(real_srcs) and x in real_srcs:
-        return map_buffers(real_srcs, real_srcs[x]) if isinstance(real_srcs[x], LazyOp) else real_srcs[x]
-    return LazyOp(
-        x.op,
-        tuple((map_buffers(real_srcs, y) if isinstance(y, LazyOp) else real_srcs[y]) for y in x.src),
-        x.arg)
+    def inner():
+        for k in real_srcs:
+            if type(k).__name__ != 'LazyBuffer':
+                breakpoint()
+        if len(real_srcs) and x in real_srcs:
+            if isinstance(real_srcs[x], LazyOp):
+                return map_buffers(real_srcs, real_srcs[x])
+            else:
+                breakpoint()
+                return real_srcs[x]
+
+        return LazyOp(
+            x.op,
+            tuple(map_buffers(real_srcs, y) if isinstance(y, LazyOp) else real_srcs[y] for y in x.src),
+            x.arg,
+        )
+
+    ret = inner()
+    if not isinstance(ret, LazyOp):
+        breakpoint()
+    return ret
 
 
 # **************** for Interpreted Buffers ****************

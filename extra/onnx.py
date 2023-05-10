@@ -50,8 +50,14 @@ def get_run_onnx(onnx_model):
                 ret = Tensor(np.array(inp.int32_data, dtype=np.float32).reshape(inp.dims), requires_grad=False)
             else:
                 ret = Tensor(
-                    np.frombuffer(inp.raw_data, dtype=tensor_dtype_to_np_dtype(inp.data_type)).reshape(inp.dims).astype(
-                        np.float32).copy(), requires_grad=False)
+                    np.frombuffer(
+                        inp.raw_data,
+                        dtype=tensor_dtype_to_np_dtype(inp.data_type)
+                    )
+                        .reshape(inp.dims)
+                        .astype(np.float32)
+                        .copy(),
+                    requires_grad=False)
         else:
             raise Exception(f"bad data type {inp.name} {inp.dims} {inp.data_type}")
         return ret
