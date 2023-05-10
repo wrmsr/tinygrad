@@ -1,12 +1,28 @@
-from typing import Final, Dict, Callable, Any, List, Optional
+import typing as ta
 import functools
-from llvmlite import ir  # type: ignore
-from tinygrad.codegen.linearizer import Linearizer, UOps, UOp, Token
-from tinygrad.helpers import dtypes
-from tinygrad.ops import Op, ASTRunner, UnaryOps, BinaryOps, FusedOps
-from tinygrad.lazy import LazyBuffer
 
-from tinygrad.shape.symbolic import Variable, NumNode, MulNode, DivNode, ModNode, GeNode, LtNode, SumNode, AndNode
+from llvmlite import ir  # type: ignore
+
+from tinygrad.codegen.linearizer import Linearizer
+from tinygrad.codegen.linearizer import Token
+from tinygrad.codegen.linearizer import UOp
+from tinygrad.codegen.linearizer import UOps
+from tinygrad.helpers import dtypes
+from tinygrad.lazy import LazyBuffer
+from tinygrad.ops import ASTRunner
+from tinygrad.ops import BinaryOps
+from tinygrad.ops import FusedOps
+from tinygrad.ops import Op
+from tinygrad.ops import UnaryOps
+from tinygrad.shape.symbolic import AndNode
+from tinygrad.shape.symbolic import DivNode
+from tinygrad.shape.symbolic import GeNode
+from tinygrad.shape.symbolic import LtNode
+from tinygrad.shape.symbolic import ModNode
+from tinygrad.shape.symbolic import MulNode
+from tinygrad.shape.symbolic import NumNode
+from tinygrad.shape.symbolic import SumNode
+from tinygrad.shape.symbolic import Variable
 
 
 def int_const(x):
@@ -24,7 +40,7 @@ render_llvm = {
     AndNode: lambda self, ops, ctx: functools.reduce(lambda a, b: ctx.and_(a, b.render(ops, ctx)), self.nodes[1:], self.nodes[0].render(ops, ctx))
 }
 
-code_for_op: Final[Dict[Op, Callable]] = {
+code_for_op: ta.Final[ta.Dict[Op, ta.Callable]] = {
     UnaryOps.EXP: lambda builder, x: builder.call(builder._block.module.declare_intrinsic('llvm.exp', [ir.FloatType()]), [x], fastmath=('fast',)),
     UnaryOps.LOG: lambda builder, x: builder.call(builder._block.module.declare_intrinsic('llvm.log', [ir.FloatType()]), [x], fastmath=('fast',)),
     BinaryOps.ADD: lambda builder, x, y: builder.fadd(x, y, flags=('fast',)),
@@ -38,7 +54,7 @@ code_for_op: Final[Dict[Op, Callable]] = {
 }
 
 
-def uops_to_llvm_ir(uops: List[UOp], bufs: List[LazyBuffer]) -> str:
+def uops_to_llvm_ir(uops: ta.List[UOp], bufs: ta.List[LazyBuffer]) -> str:
     # all llvm stuff goes into a module
     module = ir.Module(name=__file__)
 
@@ -52,9 +68,9 @@ def uops_to_llvm_ir(uops: List[UOp], bufs: List[LazyBuffer]) -> str:
 
     bb = [ir.IRBuilder(func.append_basic_block("entry"))]
     loop_blocks = []
-    reduce_phis: List = []
+    reduce_phis: ta.List = []
     # TODO: newvar probably shouldn't be optional
-    lvars: Dict[Optional[Token], Any] = {}  # this Any is an llvm type
+    lvars: ta.Dict[ta.Optional[Token], ta.Any] = {}  # this Any is an llvm type
     render_llvm[Variable] = lambda self, ops, ctx: lvars[self.expr]
 
     for uop, newvar, vin, args in uops:
