@@ -12,13 +12,13 @@ from tinygrad.shape.symbolic import Variable
 
 
 class UOps(Enum):
-    LOOP = auto();
-    DEFINE_LOCAL = auto();
-    LOAD = auto();
-    ALU = auto();
-    CONST = auto();
-    ENDLOOP = auto();
-    STORE = auto();
+    LOOP = auto()
+    DEFINE_LOCAL = auto()
+    LOAD = auto()
+    ALU = auto()
+    CONST = auto()
+    ENDLOOP = auto()
+    STORE = auto()
     CAST = auto()  # noqa: E702
 
 
@@ -28,10 +28,10 @@ class LocalBuffer(NamedTuple):
 
 
 class LocalTypes(Enum):
-    float = auto();
-    float4 = auto();
-    half = auto();
-    half4 = auto();
+    float = auto()
+    float4 = auto()
+    half = auto()
+    half4 = auto()
     simdgroup_float8x8 = auto()  # noqa: E702
 
 
