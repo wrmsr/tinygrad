@@ -21,7 +21,13 @@ def prod(x: ta.Union[ta.List[int], ta.Tuple[int, ...]]) -> int:
 
 
 def argfix(*x):
-    return tuple() if len(x) == 0 else tuple(x[0]) if isinstance(x[0], (tuple, list)) else tuple(x)
+    if len(x) == 0:
+        return ()
+    if isinstance(x[0], (tuple, list)):
+        if len(x) > 1:
+            raise TypeError('wtf')
+        return tuple(x[0])
+    return tuple(x)
 
 
 def argsort(x):
