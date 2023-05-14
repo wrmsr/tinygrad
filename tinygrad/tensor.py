@@ -519,7 +519,6 @@ class Tensor:
             padding if len(padding) >= 4 else [padding[1], padding[1], padding[0], padding[0]])
 
         # conv2d is a pooling op (with padding)
-        x = self.pad2d(padding_)._pool((H, W), stride, dilation)  # (bs, groups*cin, oy, ox, H, W)
         x = self.pad2d(padding_)._pool(HW, stride, dilation)  # (bs, groups*cin, oy, ox, H, W)
         rcout, oyx = cout // groups, x.shape[2:-len(HW)]
         x = x.reshape(bs, groups, cin, 1, *oyx, *HW) \
