@@ -560,8 +560,10 @@ class ClipTokenizer:
         self.encoder = dict(zip(vocab, range(len(vocab))))
         self.bpe_ranks = dict(zip(merges, range(len(merges))))
         self.cache = {'<|startoftext|>': '<|startoftext|>', '<|endoftext|>': '<|endoftext|>'}
-        self.pat = self.pat = re.compile(r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[^\s]+""",
-                                         re.IGNORECASE)
+        self.pat = self.pat = re.compile(
+            r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[^\s]+""",
+            re.IGNORECASE,
+        )
 
     def bpe(self, token):
         if token in self.cache:
@@ -647,11 +649,17 @@ class StableDiffusion:
 # FILENAME = "/home/kafka/model.ckpt"
 FILENAME = Path(__file__).parent.parent / "weights/sd-v1-4.ckpt"
 
-if __name__ == "__main__":
+DEFAULT_PROMPT = (
+    # "a horse sized cat eating a bagel"
+    # "a saturn v ice cream cone"
+    "hacker priest"
+)
+
+def _main():
     parser = argparse.ArgumentParser(description='Run Stable Diffusion',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--steps', type=int, default=5, help="Number of steps in diffusion")
-    parser.add_argument('--prompt', type=str, default="a horse sized cat eating a bagel", help="Phrase to render")
+    parser.add_argument('--steps', type=int, default=25, help="Number of steps in diffusion")
+    parser.add_argument('--prompt', type=str, default=DEFAULT_PROMPT, help="Phrase to render")
     parser.add_argument('--out', type=str, default="/tmp/rendered.png", help="Output filename")
     args = parser.parse_args()
 
@@ -689,7 +697,6 @@ if __name__ == "__main__":
     # done with clip model
     del model.cond_stage_model
 
-
     def get_model_output(latent, timesteps):
         # put into diffuser
         unconditional_latent = model.model.diffusion_model(latent, timesteps, unconditional_context).realize()
@@ -723,7 +730,6 @@ if __name__ == "__main__":
         x_prev = math.sqrt(a_prev) * pred_x0 + dir_xt  # + noise
         return x_prev, pred_x0
 
-
     # start with random noise
     latent = Tensor.randn(1, 4, 64, 64)
 
@@ -751,9 +757,12 @@ if __name__ == "__main__":
     # save image
     from PIL import Image
 
-
     im = Image.fromarray(dat)
     print(f"saving {args.out}")
     im.save(args.out)
     # Open image.
     im.show()
+
+
+if __name__ == "__main__":
+    _main()

@@ -144,7 +144,7 @@ def load_single_weight(t: Tensor, myfile, shape, strides, dtype, storage_offset,
         t.realize()
 
 
-def fake_torch_load_zipped(fb0, load_weights=True, multithreaded=True):
+def fake_torch_load_zipped(fb0, load_weights=True, multithreaded=False):
     if Device.DEFAULT in ["TORCH", "GPU", "CUDA"]:
         multithreaded = False  # multithreaded doesn't work with CUDA or TORCH. for GPU it's a wash with _mmap
 

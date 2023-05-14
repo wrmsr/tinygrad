@@ -52,8 +52,8 @@ class Tensor:
         # by here, it's either LazyNumpyArray or LazyBuffer
         # TODO: it should all be LazyBuffer I think
         if isinstance(data, LazyNumpyArray):
-            if not data.shape:
-                breakpoint()
+            # if not data.shape:
+            #     breakpoint()
             data = data if data.shape else data.reshape((1,))
             lazydata = LazyBuffer.fromCPU(data.astype(dtype.np) if dtype is not None else data, device)
         elif isinstance(data, LazyBuffer):

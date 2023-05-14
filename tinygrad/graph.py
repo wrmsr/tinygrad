@@ -66,7 +66,7 @@ if GRAPH:
         print("saving", G)
         nx.drawing.nx_pydot.write_dot(G, f'{GRAPHPATH}.dot')
         # -Gnslimit=100 can make it finish, but you won't like results
-        os.system(f'dot -Tsvg {GRAPHPATH}.dot -o {GRAPHPATH}.svg')
+        os.system(f'dot -Tpdf {GRAPHPATH}.dot -o {GRAPHPATH}.pdf')
 
 
     atexit.register(save_graph_exit)

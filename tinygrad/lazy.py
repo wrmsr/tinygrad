@@ -241,6 +241,8 @@ class LazyBuffer:
             elif self.optype == BinaryOps:
                 self.op = _ast_binaryops(self)  # ISSUE: this can include a reshape
 
+            ##
+
             # run the ast if we still have to, and log the op
             if self.realized is None:
                 for x in get_buffers(self.op):
