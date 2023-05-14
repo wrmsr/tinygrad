@@ -4,6 +4,7 @@ import numpy as np
 import unittest
 from tinygrad.tensor import Tensor
 from tinygrad.helpers import getenv
+from tinygrad.helpers import IMAGE
 from tinygrad.lazy import Device
 
 
@@ -301,6 +302,20 @@ class TestOps(unittest.TestCase):
     def test_mean_axis(self):
         helper_test_op([(3, 4, 5, 6)], lambda x: x.mean(axis=(1, 2)), lambda x: Tensor.mean(x, axis=(1, 2)))
 
+    def test_std(self):
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, unbiased=False), lambda x: Tensor.std(x))
+
+    def test_std_axis(self):
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, unbiased=False, dim=0), lambda x: Tensor.std(x, axis=0))
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, unbiased=False, dim=2), lambda x: Tensor.std(x, axis=2))
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, unbiased=False, dim=[1, 2]),
+                       lambda x: Tensor.std(x, axis=[1, 2]))
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, unbiased=False, dim=None),
+                       lambda x: Tensor.std(x, axis=None))
+
+    def test_std_keepdim(self):
+        helper_test_op([(45, 65, 85)], lambda x: torch.std(x, keepdim=True), lambda x: Tensor.std(x, keepdim=True))
+
     def test_log_softmax(self):
         helper_test_op([(45, 65)], lambda x: torch.nn.LogSoftmax(dim=1)(x), Tensor.log_softmax, atol=1e-7,
                        grad_atol=1e-7)
@@ -450,6 +465,18 @@ class TestOps(unittest.TestCase):
         helper_test_op([(1, 4, 9, 9), (4, 4, 3, 3)],
                        lambda x, w: torch.nn.functional.conv2d(x, w).relu(),
                        lambda x, w: Tensor.conv2d(x, w).relu(), atol=1e-4, grad_rtol=1e-5)
+
+    @unittest.skipIf(IMAGE > 0, "no conv3d on images")
+    def test_simple_conv3d(self):
+        helper_test_op([(1, 4, 9, 9, 9), (4, 4, 3, 3, 3)],
+                       lambda x, w: torch.nn.functional.conv3d(x, w).relu(),
+                       lambda x, w: Tensor.conv2d(x, w).relu(), atol=1e-4, grad_rtol=1e-5)
+
+    @unittest.skipIf(IMAGE > 0, "no conv3d on images")
+    def test_padded_conv3d(self):
+        helper_test_op([(1, 4, 9, 9, 9), (4, 4, 3, 3, 3)],
+                       lambda x, w: torch.nn.functional.conv3d(x, w, padding=1).relu(),
+                       lambda x, w: Tensor.conv2d(x, w, padding=[1, 1, 1, 1, 1, 1]).relu(), atol=1e-4, grad_rtol=1e-5)
 
     def test_simple_conv2d_m4(self):
         helper_test_op([(1, 16, 18, 18), (16, 16, 3, 3)],

@@ -480,10 +480,14 @@ class CLIPTextEmbeddings:
             inputs[0][i][x] = 1
         for i, x in enumerate(position_ids):
             positions[0][i][x] = 1
-        inputs_embeds = Tensor(inputs, device=self.token_embedding['weight'].device) @ self.token_embedding['weight']
-        position_embeddings = Tensor(positions, device=self.position_embedding['weight'].device) @ \
-                              self.position_embedding[
-                                  'weight']
+        inputs_embeds = Tensor(
+            inputs,
+            device=self.token_embedding['weight'].device,
+        ) @ self.token_embedding['weight']
+        position_embeddings = Tensor(
+            positions,
+            device=self.position_embedding['weight'].device,
+        ) @ self.position_embedding['weight']
         return inputs_embeds + position_embeddings
 
 
@@ -561,7 +565,7 @@ class ClipTokenizer:
         self.bpe_ranks = dict(zip(merges, range(len(merges))))
         self.cache = {'<|startoftext|>': '<|startoftext|>', '<|endoftext|>': '<|endoftext|>'}
         self.pat = self.pat = re.compile(
-            r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[^\s]+""",
+            r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|\S+""",
             re.IGNORECASE,
         )
 

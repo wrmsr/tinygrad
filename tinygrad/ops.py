@@ -287,7 +287,7 @@ class ASTRunner:
         if DEBUG >= 2:
             print(
                 f"{colored(f'*** {GlobalCounters.kernel_count:4d}', 'magenta' if jit else None)} "
-                f"{(self.display_name + ' ' * (28 - len(self.name))) if self.display_name is not None else self.name:26s} "
+                f"{(self.display_name + ' ' * (29 - len(self.name))) if self.display_name is not None else self.name:26s} "
                 f"arg {len(rawbufs):3d} "
                 f"sz {str(self.global_size):18s} {str(self.local_size):12s} "
                 f"OPs {int(self.op_estimate / 1e6):6d}M/{GlobalCounters.global_ops / 1e9:7.2f}G  "

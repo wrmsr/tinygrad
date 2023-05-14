@@ -375,12 +375,8 @@ class Tensor:
 
     # (padding_left, padding_right, padding_top, padding_bottom)
     def pad2d(self, padding: ta.Union[ta.List[int], ta.Tuple[int, ...]]):
-        return self.slice((
-            (0, self.shape[0]),
-            (0, self.shape[1]),
-            (-padding[2], self.shape[2] + padding[3]),
-            (-padding[0], self.shape[3] + padding[1]),
-        ))
+        slc = [(-p0, s + p1) for p0, p1, s in zip(padding[::2], padding[1::2], self.shape[::-1])][::-1]
+        return self.slice([(0, s) for s in self.shape[:-(len(padding) // 2)]] + slc)
 
     @property
     def T(self) -> 'Tensor':
@@ -416,6 +412,11 @@ class Tensor:
     def mean(self, axis=None, keepdim=False):
         out = self.sum(axis=axis, keepdim=keepdim)
         return out * (prod(out.shape) / prod(self.shape))
+
+    # TODO: implement unbiased True option for torch bessel's correction (subtracting 1 from divisor causes 0.01 error)
+    def std(self, axis=None, keepdim=False):
+        square_sum = ((self - self.mean(axis=axis, keepdim=True)).square()).sum(axis=axis, keepdim=keepdim)
+        return (square_sum * (prod(square_sum.shape) / prod(self.shape))).sqrt()
 
     def _softmax(self, axis):
         m = self - self.max(axis=axis, keepdim=True)
@@ -511,25 +512,19 @@ class Tensor:
         dilation=1,
         padding=0,
     ) -> 'Tensor':
-        (bs, cin_, _, _), (cout, cin, H, W) = self.shape, weight.shape
-        assert groups * cin == cin_, \
-            f"Input Tensor shape {self.shape} does not match the shape of the weights {weight.shape}. " \
-            f"({groups * cin} vs. {cin_})"
-
-        if isinstance(padding, int):
-            padding_ = [padding] * 4
-        elif len(padding) == 4:
-            padding_ = padding
-        else:
-            padding_ = [padding[1], padding[1], padding[0], padding[0]]
+        (bs, cin_), (cout, cin), HW = self.shape[:2], weight.shape[:2], weight.shape[2:]
+        assert groups * cin == cin_ and len(self.shape) == len(weight.shape), \
+            f"Input Tensor shape {self.shape} does not match the shape of the weights {weight.shape}. ({groups * cin} vs. {cin_})"
+        padding_ = [padding] * 4 if isinstance(padding, int) else (
+            padding if len(padding) >= 4 else [padding[1], padding[1], padding[0], padding[0]])
 
         # conv2d is a pooling op (with padding)
         x = self.pad2d(padding_)._pool((H, W), stride, dilation)  # (bs, groups*cin, oy, ox, H, W)
-        rcout, oy, ox = cout // groups, x.shape[2], x.shape[3]
-        x = x \
-            .reshape(bs, groups, cin, 1, oy, ox, H, W) \
-            .expand(bs, groups, cin, rcout, oy, ox, H, W) \
-            .permute(0, 1, 3, 4, 5, 2, 6, 7)
+        x = self.pad2d(padding_)._pool(HW, stride, dilation)  # (bs, groups*cin, oy, ox, H, W)
+        rcout, oyx = cout // groups, x.shape[2:-len(HW)]
+        x = x.reshape(bs, groups, cin, 1, *oyx, *HW) \
+            .expand(bs, groups, cin, rcout, *oyx, *HW) \
+            .permute(0, 1, 3, *[4 + i for i in range(len(oyx))], 2, *[4 + len(oyx) + i for i in range(len(HW))])
 
         # expand the channels with the pool
         # TODO: this reduces the number of kernels, but it's slower!
@@ -538,14 +533,10 @@ class Tensor:
         # rcout, oy, ox = x.shape[2:5]
         # x = x.reshape(bs, groups, cin, rcout, oy, ox, H, W).permute(0,1,3,4,5,2,6,7)
 
-        # conv! broadcasted to (bs, groups, rcout, oy, ox, cin, H, W)
-        ret = (x * weight.reshape(1, groups, rcout, 1, 1, cin, H, W)) \
-            .sum((-3, -2, -1), keepdim=True).reshape(bs, cout, oy, ox)
-
-        if bias is None:
-            return ret
-
-        return ret.add(bias.reshape(1, -1, 1, 1))
+        ret = (x * weight.reshape(1, groups, rcout, *[1 for _ in range(len(oyx))], cin, *HW)) \
+            .sum([-1 - i for i in range(1 + len(oyx))], keepdim=True) \
+            .reshape(bs, cout, *oyx)
+        return ret if bias is None else ret.add(bias.reshape(1, -1, *[1 for _ in range(len(HW))]))
 
     def dot(self, w: 'Tensor') -> 'Tensor':
         x = self.reshape(*self.shape[0:-1], 1, self.shape[-1])

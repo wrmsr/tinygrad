@@ -3,8 +3,17 @@ from tinygrad.tensor import Tensor
 
 
 class BatchNorm2d:
-    def __init__(self, sz, eps=1e-5, affine=True, track_running_stats=True, momentum=0.1):
-        self.eps, self.track_running_stats, self.momentum = eps, track_running_stats, momentum
+    def __init__(
+        self,
+        sz,
+        eps=1e-5,
+        affine=True,
+        track_running_stats=True,
+        momentum=0.1,
+    ):
+        self.eps = eps
+        self.track_running_stats = track_running_stats
+        self.momentum = momentum
 
         if affine:
             self.weight, self.bias = Tensor.ones(sz), Tensor.zeros(sz)
@@ -40,17 +49,34 @@ class BatchNorm2d:
 
 # TODO: is this good weight init?
 class Conv2d:
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
-        self.kernel_size = (kernel_size, kernel_size) if isinstance(kernel_size, int) else (
-            kernel_size[0], kernel_size[1])
-        self.stride, self.padding, self.dilation, self.groups = stride, padding, dilation, groups
-        self.weight = Tensor.glorot_uniform(out_channels, in_channels // groups, self.kernel_size[0],
-                                            self.kernel_size[1])
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+    ):
+        self.kernel_size = (kernel_size, kernel_size) if isinstance(kernel_size, int) else tuple(kernel_size)
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+        self.weight = Tensor.glorot_uniform(out_channels, in_channels // groups, *self.kernel_size)
         self.bias = Tensor.zeros(out_channels) if bias else None
 
     def __call__(self, x):
-        return x.conv2d(self.weight, self.bias, padding=self.padding, stride=self.stride, dilation=self.dilation,
-                        groups=self.groups)
+        return x.conv2d(
+            self.weight,
+            self.bias,
+            padding=self.padding,
+            stride=self.stride,
+            dilation=self.dilation,
+            groups=self.groups,
+        )
 
 
 class Linear:
@@ -76,18 +102,26 @@ class GroupNorm:
         if self.weight is None or self.bias is None:
             return x
         # elementwise_affine on channels
-        return x * self.weight.reshape(1, -1, 1, 1) + self.bias.reshape(1, -1, 1, 1)
+        return (
+            x *
+            self.weight.reshape(1, -1, *[1 for _ in range(len(x.shape) - 2)]) +
+            self.bias.reshape(1, -1, *[1 for _ in range(len(x.shape) - 2)])
+        )
 
 
 class LayerNorm:
-    def __init__(self, normalized_shape: Union[int, Tuple[int, ...]], eps: float = 1e-5,
-                 elementwise_affine: bool = True):
+    def __init__(
+        self,
+        normalized_shape: Union[int, Tuple[int, ...]],
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+    ):
         self.normalized_shape = (normalized_shape,) if isinstance(normalized_shape, int) else tuple(normalized_shape)
-        self.axis, self.eps, self.elementwise_affine = tuple(
-            -1 - i for i in range(len(self.normalized_shape))), eps, elementwise_affine
-        self.weight, self.bias = (
-            Tensor.ones(*self.normalized_shape), Tensor.zeros(*self.normalized_shape)) if elementwise_affine else (
-            None, None)
+        self.axis = tuple(-1 - i for i in range(len(self.normalized_shape)))
+        self.eps = eps
+        self.elementwise_affine = elementwise_affine
+        self.weight, self.bias = (Tensor.ones(*self.normalized_shape), Tensor.zeros(*self.normalized_shape)) \
+            if elementwise_affine else (None, None)
 
     def __call__(self, x: Tensor):
         assert self.normalized_shape == x.shape[-len(
@@ -99,4 +133,5 @@ class LayerNorm:
 
 
 class LayerNorm2d(LayerNorm):
-    def __call__(self, x): return super().__call__(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+    def __call__(self, x):
+        return super().__call__(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
