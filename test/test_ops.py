@@ -59,11 +59,14 @@ def helper_test_op(
     torch_fbp, tinygrad_fbp = np.nan, np.nan
     if not forward_only and not FORWARD_ONLY:
         st = time.monotonic()
-        (out + 1).square().mean().backward()
+        out_g = (out + 1).square().mean()
+        out_g.backward()
         torch_fbp = time.monotonic() - st
 
         st = time.monotonic()
-        (ret + 1).square().mean().backward()
+        ret1 = ret + 1
+        ret_g = ret1.square().mean()
+        ret_g.backward()
         for tt in tst:
             tt.grad.realize()
         tinygrad_fbp = time.monotonic() - st

@@ -68,7 +68,7 @@ def getenv(key, default=0):
     return type(default)(os.getenv(key, default))
 
 
-DEBUG = getenv("DEBUG", 0)
+DEBUG = getenv("DEBUG", 1)
 IMAGE = getenv("IMAGE", 0)
 
 

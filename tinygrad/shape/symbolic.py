@@ -58,15 +58,19 @@ class Node:
         # this is a hack to make div work with boolean nodes. TODO: make generic
         if isinstance(self, GeNode):
             return (self.a * b) >= (self.b * b)
+
         if isinstance(self, LtNode):
             return (self.a * b) < (self.b * b)
+
         if isinstance(self, AndNode):
             return Variable.ands([x * b for x in self.nodes])
 
         if isinstance(self, MulNode):
             return self.a * (self.b * b)  # two muls is one mul
+
         if isinstance(self, SumNode):
             return Variable.sum([x * b for x in self.nodes])  # distribute mul into sum
+
         return create_opnode(MulNode, self, b)
 
     # *** complex ops ***

@@ -68,6 +68,9 @@ class CLBuffer(RawBufferCopyInOut):
 
 class CLProgram:
     def __init__(self, name: str, prg: str, binary=False, argdtypes=None, options=None):
+        print(name)
+        print(prg)
+        print()
         self.name, self.argdtypes, self.clprogram = \
             name, argdtypes, cl.Program(CL.cl_ctx, CL.cl_ctx.devices, [prg]) if binary else cl.Program(CL.cl_ctx,
                                                                                                        prg)  # type: ignore
