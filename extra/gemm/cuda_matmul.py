@@ -1,28 +1,25 @@
 import os
 import numpy as np
-
-
 os.environ["CUDA"] = "1"
 from tinygrad.runtime.ops_cuda import RawCUDABuffer, CUDAProgram
-
 
 FLOAT16 = True
 ACC_FLOAT16 = False
 N = 4096
 
-na = np.random.default_rng().standard_normal(size=(N, N), dtype=np.float32)
-nb = np.random.default_rng().standard_normal(size=(N, N), dtype=np.float32)
+na = np.random.default_rng().standard_normal(size=(N,N), dtype=np.float32)
+nb = np.random.default_rng().standard_normal(size=(N,N), dtype=np.float32)
 
 if FLOAT16:
-    na = na.astype(np.float16)
-    nb = nb.astype(np.float16)
+  na = na.astype(np.float16)
+  nb = nb.astype(np.float16)
 
 a = RawCUDABuffer.fromCPU(na)
 b = RawCUDABuffer.fromCPU(nb)
-c = RawCUDABuffer.fromCPU(np.ones((N, N), dtype=np.float32))
+c = RawCUDABuffer.fromCPU(np.ones((N,N),dtype=np.float32))
 
-FLOPS = N * N * N * 2
-BW = N * N * 3 * 4
+FLOPS = N*N*N*2
+BW = N*N*3*4
 
 prog = CUDAProgram("wmma_example", f"""
 #include <mma.h>
@@ -93,7 +90,7 @@ __global__ void wmma_example({'half' if FLOAT16 else 'float'} *a, {'half' if FLO
 }}
 """)
 
-tm = min([prog([(N // 16 * 32) // 4, (N // 16) // 4], [32, 1], a, b, c, wait=True) for _ in range(20)])
-print(f"{N * N:10d} {tm * 1e6:9.2f} us, would be {FLOPS * 1e-9 / tm:9.2f} GFLOPS matmul, {BW * 1e-9 / tm:.2f} GB/s")
+tm = min([prog([(N//16*32)//4, (N//16)//4], [32, 1], a, b, c, wait=True) for _ in range(20)])
+print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:9.2f} GFLOPS matmul, {BW*1e-9/tm:.2f} GB/s")
 
-np.testing.assert_allclose(na.T.astype(np.float32) @ nb.T.astype(np.float32), c.toCPU().reshape((N, N)).T, atol=1e-2)
+np.testing.assert_allclose(na.T.astype(np.float32) @ nb.T.astype(np.float32), c.toCPU().reshape((N,N)).T, atol=1e-2)

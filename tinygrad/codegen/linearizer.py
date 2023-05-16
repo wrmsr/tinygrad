@@ -769,7 +769,7 @@ class Linearizer:
             if self.full_unupcasted_shape[-1] <= 16:
                 self.upcast()
             else:
-                for splits in [16, 8, 4]:
+                for splits in [4]:  # [16, 8, 4]:  # FIXME: ??
                     if self.full_unupcasted_shape[-1] % splits == 0:
                         self.shift_to(
                             len(self.full_unupcasted_shape) - 1,
