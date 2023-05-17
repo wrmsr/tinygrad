@@ -548,8 +548,8 @@ class _Device:
 
     def _default_device(self) -> str:
         for device in [
-            # "METAL",
-            # "CUDA",
+            "METAL",
+            "CUDA",
             "GPU",
         ]:
             try:

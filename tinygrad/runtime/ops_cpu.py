@@ -63,10 +63,14 @@ def einsum_mulacc(einsum, get_strides, expand):
 
 
 numpy_fxn_for_op: ta.Dict[Op, ta.Callable] = {**base_fxn_for_op, **{
-    UnaryOps.NOOP: lambda x: np.require(x, requirements='C'), UnaryOps.EXP: np.exp, UnaryOps.LOG: np.log,
+    UnaryOps.NOOP: lambda x: np.require(x, requirements='C'),
+    UnaryOps.EXP: np.exp,
+    UnaryOps.LOG: np.log,
     UnaryOps.CAST: lambda x, y: x.astype(y.np),
-    BinaryOps.MAX: np.maximum, BinaryOps.CMPEQ: lambda x, y: (x == y).astype(np.float32),
-    MovementOps.PERMUTE: lambda x, order: x.transpose(order), MovementOps.PAD: np.pad,
+    BinaryOps.MAX: np.maximum,
+    BinaryOps.CMPEQ: lambda x, y: (x == y).astype(np.float32),
+    MovementOps.PERMUTE: lambda x, order: x.transpose(order),
+    MovementOps.PAD: np.pad,
     MovementOps.EXPAND: np.broadcast_to,
     MovementOps.STRIDE: lambda x, arg: x[tuple(slice(None, None, i) for i in arg)],
     FusedOps.MULACC: einsum_mulacc(lambda s, a, b: np.einsum(s, a.copy(), b.copy()), lambda x: x.strides, np.broadcast_to),

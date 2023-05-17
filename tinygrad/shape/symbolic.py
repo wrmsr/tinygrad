@@ -254,7 +254,8 @@ def create_node(ret: Node):
 
 
 class OpNode(Node):
-    def __init__(self, a: Node, b: int): self.a, self.b = a, b
+    def __init__(self, a: Node, b: int):
+        self.a, self.b = a, b
 
 
 class GeNode(OpNode):

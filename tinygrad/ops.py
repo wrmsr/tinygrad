@@ -388,6 +388,7 @@ class Compiled:
         if ast.op in MovementOps and not isinstance(ast.src[0], LazyOp) and ast.src[0].realized is not None:
             return ast.src[0].realized
 
+        print(ast)
         # check if we can reuse the output buffer. if it's aliased, don't use it
         # NOTE: this is pretty wrong actually, who knows where else this buffer is used?
         output.realized = output.output_buffer

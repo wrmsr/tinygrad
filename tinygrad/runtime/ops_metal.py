@@ -55,33 +55,69 @@ def unwrap(x):
 
 class MetalProgram:
     def __init__(self, name: str, prg: str):
-        # print(name)
-        # print(prg)
-        # print()
+        print(name)
+        print(prg)
+        print()
 
         if METAL_XCODE:
-            air = subprocess.check_output(['xcrun', '-sdk', 'macosx', 'metal', '-x', 'metal', '-c', '-', '-o', '-'],
-                                          input=prg.encode('utf-8'))
+            air = subprocess.check_output(
+                [
+                    'xcrun',
+                    '-sdk',
+                    'macosx',
+                    'metal',
+                    '-x',
+                    'metal',
+                    '-c',
+                    '-',
+                    '-o',
+                    '-',
+                ],
+                input=prg.encode('utf-8'),
+            )
             # NOTE: if you run llvm-dis on "air" you can see the llvm bytecode
-            lib = subprocess.check_output(['xcrun', '-sdk', 'macosx', 'metallib', '-', '-o', '-'], input=air)
+            lib = subprocess.check_output(
+                [
+                    'xcrun',
+                    '-sdk',
+                    'macosx',
+                    'metallib',
+                    '-',
+                    '-o',
+                    '-',
+                ],
+                input=air,
+            )
+
             data = libdispatch.dispatch_data_create(lib, len(lib), None, None)
             self.library = unwrap(METAL.device.newLibraryWithData_error_(data, None))
+
         else:
             options = Metal.MTLCompileOptions.alloc().init()
             self.library = unwrap(METAL.device.newLibraryWithSource_options_error_(prg, options, None))
+
         self.fxn = self.library.newFunctionWithName_(name)
+
         # hacks to disassemble shader
         if DEBUG >= 5:
             arc = unwrap(
-                METAL.device.newBinaryArchiveWithDescriptor_error_(Metal.MTLBinaryArchiveDescriptor.alloc().init(),
-                                                                   None))
+                METAL.device.newBinaryArchiveWithDescriptor_error_(
+                    Metal.MTLBinaryArchiveDescriptor.alloc().init(),
+                    None,
+                ),
+            )
             desc = Metal.MTLComputePipelineDescriptor.alloc().init()
             desc.setComputeFunction_(self.fxn)
+
             unwrap(arc.addComputePipelineFunctionsWithDescriptor_error_(desc, None))
             unwrap(arc.serializeToURL_error_(Cocoa.NSURL.URLWithString_("file:///tmp/shader.bin"), None))
+
             # clone https://github.com/dougallj/applegpu.git in tinygrad/disassemblers
             os.system(
-                f"cd {pathlib.Path(__file__).parent.parent.parent}/disassemblers/applegpu && python3 compiler_explorer.py /tmp/shader.bin")
+                f"cd {pathlib.Path(__file__).parent.parent.parent}/disassemblers/applegpu && "
+                f"python3 compiler_explorer.py /tmp/shader.bin"
+            )
+
         self.pipeline_state = unwrap(METAL.device.newComputePipelineStateWithFunction_error_(self.fxn, None))
 
     def __call__(self, global_size, local_size, *bufs, wait=False):

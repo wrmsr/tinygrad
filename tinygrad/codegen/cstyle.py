@@ -82,10 +82,14 @@ def to_image_idx(
 code_for_op: ta.Final[ta.Dict[Op, ta.Callable]] = {
     UnaryOps.EXP: lambda x: f"native_exp({x})" if NATIVE_EXPLOG else f"exp({x})",
     UnaryOps.LOG: lambda x: f"native_log({x})" if NATIVE_EXPLOG else f"log({x})",
-    BinaryOps.ADD: lambda a, b: f"({a}+{b})", BinaryOps.SUB: lambda a, b: f"({a}-{b})",
-    BinaryOps.MUL: lambda a, b: f"({a}*{b})", BinaryOps.DIV: lambda a, b: f"({a}/{b})",
-    BinaryOps.POW: lambda a, b: f"pow({a},{b})", BinaryOps.MAX: lambda a, b: f"max({a},{b})",
-    BinaryOps.CMPEQ: lambda a, b: f"({a}=={b})", FusedOps.MULACC: lambda a, b, c: f"(({b}*{c})+{a})"
+    BinaryOps.ADD: lambda a, b: f"({a}+{b})",
+    BinaryOps.SUB: lambda a, b: f"({a}-{b})",
+    BinaryOps.MUL: lambda a, b: f"({a}*{b})",
+    BinaryOps.DIV: lambda a, b: f"({a}/{b})",
+    BinaryOps.POW: lambda a, b: f"pow({a},{b})",
+    BinaryOps.MAX: lambda a, b: f"max({a},{b})",
+    BinaryOps.CMPEQ: lambda a, b: f"({a}=={b})",
+    FusedOps.MULACC: lambda a, b, c: f"(({b}*{c})+{a})"
 }
 
 
