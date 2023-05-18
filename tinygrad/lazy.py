@@ -249,9 +249,14 @@ class LazyBuffer:
                     x.realize()
 
                 # HACK: image shape can be wrong, hot ta.cast it back to a normal float
-                if self.optype != MovementOps and isinstance(self.dtype, ImageDType) and (
-                    prod(self.shape) != prod(self.dtype.shape) or not any(
-                    self.shape[x] % 4 == 0 for x in self.st.unit_stride_axes())):
+                if (
+                    self.optype != MovementOps and
+                    isinstance(self.dtype, ImageDType) and
+                    (
+                        prod(self.shape) != prod(self.dtype.shape) or
+                        not any(self.shape[x] % 4 == 0 for x in self.st.unit_stride_axes())
+                    )
+                ):
                     if self.op.op == MovementOps.RESHAPE:
                         # put CAST before the final RESHAPE
                         self.op = LazyOp(
