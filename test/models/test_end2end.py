@@ -30,7 +30,9 @@ def compare_tiny_torch(model, model_torch, X, Y):
     print(loss_torch.detach().numpy())
 
     # assert losses match
-    np.testing.assert_allclose(loss.realize().numpy()[0], loss_torch.detach().numpy(), atol=1e-4)
+    np.testing.assert_allclose(
+        loss.realize().numpy()[0], loss_torch.detach().numpy(), atol=1e-4
+    )
 
     # zero and backward
     optimizer.zero_grad()
@@ -42,7 +44,7 @@ def compare_tiny_torch(model, model_torch, X, Y):
         g = model_state_dict[k].grad.numpy()
         gt = v.grad.detach().numpy()
         print("testing grads", k)
-        np.testing.assert_allclose(g, gt, atol=1e-3, err_msg=f'grad mismatch {k}')
+        np.testing.assert_allclose(g, gt, atol=1e-3, err_msg=f"grad mismatch {k}")
 
     # take the steps
     optimizer.step()
@@ -51,8 +53,12 @@ def compare_tiny_torch(model, model_torch, X, Y):
     # assert weights match (they don't!)
     for k, v in model_torch.named_parameters():
         print("testing weight", k)
-        np.testing.assert_allclose(model_state_dict[k].numpy(), v.detach().numpy(), atol=1e-3,
-                                   err_msg=f'weight mismatch {k}')
+        np.testing.assert_allclose(
+            model_state_dict[k].numpy(),
+            v.detach().numpy(),
+            atol=1e-3,
+            err_msg=f"weight mismatch {k}",
+        )
 
 
 def get_mnist_data():
@@ -100,8 +106,10 @@ class TestEnd2End(unittest.TestCase):
 
             def __call__(self, x):
                 return self.l2(
-                    self.bn1(self.l1(x).reshape(x.shape[0], -1, 1, 1)).reshape(x.shape[0], -1).relu()).log_softmax(
-                    -1)
+                    self.bn1(self.l1(x).reshape(x.shape[0], -1, 1, 1))
+                    .reshape(x.shape[0], -1)
+                    .relu()
+                ).log_softmax(-1)
 
         class LinTorch(nn.Module):
             def __init__(self):
@@ -112,8 +120,10 @@ class TestEnd2End(unittest.TestCase):
 
             def forward(self, x):
                 return self.l2(
-                    self.bn1(self.l1(x).reshape(x.shape[0], -1, 1, 1)).reshape(x.shape[0], -1).relu()).log_softmax(
-                    -1)
+                    self.bn1(self.l1(x).reshape(x.shape[0], -1, 1, 1))
+                    .reshape(x.shape[0], -1)
+                    .relu()
+                ).log_softmax(-1)
 
         compare_tiny_torch(LinTiny(), LinTorch(), self.X, self.Y)
 
@@ -132,21 +142,27 @@ class TestEnd2End(unittest.TestCase):
         class LinTiny:
             def __init__(self):
                 self.l1 = Conv2d(K, K, 1, bias=False)
-                self.bn1 = BatchNorm2d(K, affine=False, track_running_stats=False, eps=eps)
+                self.bn1 = BatchNorm2d(
+                    K, affine=False, track_running_stats=False, eps=eps
+                )
 
-            def __call__(self, x): return self.bn1(self.l1(x))
+            def __call__(self, x):
+                return self.bn1(self.l1(x))
 
         class LinTorch(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.l1 = nn.Conv2d(K, K, 1, bias=False)
-                self.bn1 = nn.BatchNorm2d(K, affine=False, track_running_stats=False, eps=eps)
+                self.bn1 = nn.BatchNorm2d(
+                    K, affine=False, track_running_stats=False, eps=eps
+                )
 
-            def forward(self, x): return self.bn1(self.l1(x))
+            def forward(self, x):
+                return self.bn1(self.l1(x))
 
         model_torch = LinTorch()
         with torch.no_grad():
-            model_torch.l1.weight[:] = 1.
+            model_torch.l1.weight[:] = 1.0
         compare_tiny_torch(LinTiny(), model_torch, X, Y)
 
     def test_conv_mnist(self):
@@ -162,7 +178,10 @@ class TestEnd2End(unittest.TestCase):
 
             def __call__(self, x):
                 return self.l1(
-                    self.bn2(self.c2(self.bn1(self.c1(x)).relu())).relu().reshape(x.shape[0], -1)).log_softmax(-1)
+                    self.bn2(self.c2(self.bn1(self.c1(x)).relu()))
+                    .relu()
+                    .reshape(x.shape[0], -1)
+                ).log_softmax(-1)
 
         class LinTorch(nn.Module):
             def __init__(self, has_batchnorm=False):
@@ -177,12 +196,19 @@ class TestEnd2End(unittest.TestCase):
 
             def forward(self, x):
                 return self.l1(
-                    self.bn2(self.c2(self.bn1(self.c1(x)).relu())).relu().reshape(x.shape[0], -1)).log_softmax(-1)
+                    self.bn2(self.c2(self.bn1(self.c1(x)).relu()))
+                    .relu()
+                    .reshape(x.shape[0], -1)
+                ).log_softmax(-1)
 
         for has_batchnorm in [False, True]:
             with self.subTest(has_batchnorm=has_batchnorm):
-                compare_tiny_torch(LinTiny(has_batchnorm), LinTorch(has_batchnorm), self.X.reshape((-1, 1, 28, 28)),
-                                   self.Y)
+                compare_tiny_torch(
+                    LinTiny(has_batchnorm),
+                    LinTorch(has_batchnorm),
+                    self.X.reshape((-1, 1, 28, 28)),
+                    self.Y,
+                )
 
 
 if __name__ == "__main__":

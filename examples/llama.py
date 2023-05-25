@@ -23,9 +23,13 @@ from tinygrad.jit import TinyJit
 
 # https://github.com/facebookresearch/llama/blob/1076b9c51c77ad06e9d7ba8a4c6df775741732bd/llama/model.py#L47
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
-    freqs = 1.0 / (theta ** (np.arange(0, dim, 2, dtype=np.float32)[:(dim // 2)] / dim))
+    freqs = 1.0 / (
+        theta ** (np.arange(0, dim, 2, dtype=np.float32)[: (dim // 2)] / dim)
+    )
     freqs = np.outer(np.arange(end, dtype=np.float32), freqs)
-    return np.stack([np.cos(freqs), np.sin(freqs)], axis=-1).reshape(1, end, 1, dim // 2, 2)
+    return np.stack([np.cos(freqs), np.sin(freqs)], axis=-1).reshape(
+        1, end, 1, dim // 2, 2
+    )
 
 
 # (a+i*b) * (c+i*d) = (ac-bd) + i*(ad+bc)
@@ -39,8 +43,9 @@ def complex_mult(A, B):
 
 
 def apply_rotary_emb(xq, xk, freqs_cis) -> Tuple[Tensor, Tensor]:
-    assert freqs_cis.shape[1] == xq.shape[1] and freqs_cis.shape[1] == xk.shape[
-        1], f"freqs_cis shape mismatch {freqs_cis.shape} xq:{xq.shape} xk:{xk.shape}"
+    assert (
+        freqs_cis.shape[1] == xq.shape[1] and freqs_cis.shape[1] == xk.shape[1]
+    ), f"freqs_cis shape mismatch {freqs_cis.shape} xq:{xq.shape} xk:{xk.shape}"
     xq = xq.reshape(*xq.shape[0:-1], -1, 2)
     xk = xk.reshape(*xk.shape[0:-1], -1, 2)
     xq_out = complex_mult(xq, freqs_cis)
@@ -60,25 +65,39 @@ class RMSNorm:
 
 class Attention:
     def __init__(self, dim, n_heads):
-        self.wq, self.wk, self.wv, self.wo = [Linear(dim, dim, bias=False) for _ in range(4)]
+        self.wq, self.wk, self.wv, self.wo = [
+            Linear(dim, dim, bias=False) for _ in range(4)
+        ]
         self.n_heads = n_heads
         self.head_dim = dim // n_heads
 
-    def prepare_attention(self, x: Tensor, freqs_cis: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def prepare_attention(
+        self, x: Tensor, freqs_cis: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
-        xq, xk, xv = [x.reshape(x.shape[0], x.shape[1], self.n_heads, self.head_dim) for x in (xq, xk, xv)]
+        xq, xk, xv = [
+            x.reshape(x.shape[0], x.shape[1], self.n_heads, self.head_dim)
+            for x in (xq, xk, xv)
+        ]
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
         return xq, xk, xv
 
-    def inner_attention(self, xq: Tensor, xk: Tensor, xv: Tensor, start_pos: int, mask: Optional[Tensor]) -> Tensor:
+    def inner_attention(
+        self, xq: Tensor, xk: Tensor, xv: Tensor, start_pos: int, mask: Optional[Tensor]
+    ) -> Tensor:
         bsz, seqlen, _, _ = xq.shape
         # kv caching!
         if start_pos == 0:
             keys, values = xk, xv
         else:
-            assert hasattr(self, 'cache_k'), "no cache"
-            assert start_pos == self.cache_k.shape[1] and start_pos == self.cache_v.shape[1], "cache is wrong shape"
-            assert seqlen == xk.shape[1] and seqlen == xv.shape[1], "seqlen is wrong shape?!?"
+            assert hasattr(self, "cache_k"), "no cache"
+            assert (
+                start_pos == self.cache_k.shape[1]
+                and start_pos == self.cache_v.shape[1]
+            ), "cache is wrong shape"
+            assert (
+                seqlen == xk.shape[1] and seqlen == xv.shape[1]
+            ), "seqlen is wrong shape?!?"
             keys, values = self.cache_k.cat(xk, dim=1), self.cache_v.cat(xv, dim=1)
 
         # save the cache
@@ -94,7 +113,9 @@ class Attention:
         return scores.matmul(values).transpose(1, 2).reshape(bsz, seqlen, -1)
 
     # NOTE: this is not called
-    def __call__(self, x: Tensor, start_pos: int, freqs_cis: Tensor, mask: Optional[Tensor]) -> Tensor:
+    def __call__(
+        self, x: Tensor, start_pos: int, freqs_cis: Tensor, mask: Optional[Tensor]
+    ) -> Tensor:
         xq, xk, xv = self.prepare_attention(x, freqs_cis)
         output = self.inner_attention(xq, xk, xv, start_pos, mask)
         return self.wo(output)
@@ -133,7 +154,9 @@ class TransformerBlock:
         h = x + self.attention.wo(output)
         return (h + self.feed_forward(self.ffn_norm(h))).realize()
 
-    def __call__(self, x: Tensor, start_pos: int, freqs_cis: Tensor, mask: Optional[Tensor]):
+    def __call__(
+        self, x: Tensor, start_pos: int, freqs_cis: Tensor, mask: Optional[Tensor]
+    ):
         xq, xk, xv = self._pre(x, freqs_cis)
         # inner_attention can't be jitted because it's dynamic based on start_pos
         output = self.attention.inner_attention(xq, xk, xv, start_pos, mask)
@@ -141,8 +164,21 @@ class TransformerBlock:
 
 
 class Transformer:
-    def __init__(self, dim, multiple_of, n_heads, n_layers, norm_eps, vocab_size, max_batch_size=32, max_seq_len=1024):
-        self.layers = [TransformerBlock(dim, multiple_of, n_heads, norm_eps) for _ in range(n_layers)]
+    def __init__(
+        self,
+        dim,
+        multiple_of,
+        n_heads,
+        n_layers,
+        norm_eps,
+        vocab_size,
+        max_batch_size=32,
+        max_seq_len=1024,
+    ):
+        self.layers = [
+            TransformerBlock(dim, multiple_of, n_heads, norm_eps)
+            for _ in range(n_layers)
+        ]
         self.norm = RMSNorm(dim, norm_eps)
         self.tok_embeddings = {"weight": Tensor.glorot_uniform(vocab_size, dim)}
         self.output = Linear(dim, vocab_size, bias=False)
@@ -150,14 +186,20 @@ class Transformer:
 
     def __call__(self, tokens: Tensor, start_pos: int):
         _bsz, seqlen, _ = tokens.shape
-        h = tokens @ self.tok_embeddings['weight']
+        h = tokens @ self.tok_embeddings["weight"]
 
         # get only the part we are using. making it contiguous avoids more kernel calls
-        freqs_cis = self.freqs_cis[:, start_pos:start_pos + seqlen].contiguous().realize()
+        freqs_cis = (
+            self.freqs_cis[:, start_pos : start_pos + seqlen].contiguous().realize()
+        )
 
         if seqlen > 1:
-            mask = np.full((1, 1, seqlen, start_pos + seqlen), float("-inf"), dtype=np.float32)
-            mask = np.triu(mask, k=start_pos + 1)  # TODO: this is hard to do in tinygrad
+            mask = np.full(
+                (1, 1, seqlen, start_pos + seqlen), float("-inf"), dtype=np.float32
+            )
+            mask = np.triu(
+                mask, k=start_pos + 1
+            )  # TODO: this is hard to do in tinygrad
             mask = Tensor(mask)
         else:
             mask = None
@@ -175,18 +217,40 @@ WEIGHTS_DIR = Path(__file__).parent.parent / "weights/LLaMA/"
 TOKENIZER_FILENAME = WEIGHTS_DIR / "tokenizer.model"
 VOCAB_SIZE = 32000
 
-args_small = {"dim": 512, "multiple_of": 256, "n_heads": 8, "n_layers": 8, "norm_eps": 1e-05, "vocab_size": VOCAB_SIZE}
+args_small = {
+    "dim": 512,
+    "multiple_of": 256,
+    "n_heads": 8,
+    "n_layers": 8,
+    "norm_eps": 1e-05,
+    "vocab_size": VOCAB_SIZE,
+}
 
-args_7B = {"dim": 4096, "multiple_of": 256, "n_heads": 32, "n_layers": 32, "norm_eps": 1e-06, "vocab_size": VOCAB_SIZE}
+args_7B = {
+    "dim": 4096,
+    "multiple_of": 256,
+    "n_heads": 32,
+    "n_layers": 32,
+    "norm_eps": 1e-06,
+    "vocab_size": VOCAB_SIZE,
+}
 WEIGHTS_7B_FILENAME = WEIGHTS_DIR / "7B/consolidated.00.pth"
 
 # TODO: make this model work
-args_13B = {"dim": 5120, "multiple_of": 256, "n_heads": 40, "n_layers": 40, "norm_eps": 1e-06, "vocab_size": VOCAB_SIZE}
+args_13B = {
+    "dim": 5120,
+    "multiple_of": 256,
+    "n_heads": 40,
+    "n_layers": 40,
+    "norm_eps": 1e-06,
+    "vocab_size": VOCAB_SIZE,
+}
 WEIGHTS_13B_0_FILENAME = WEIGHTS_DIR / "13B/consolidated.00.pth"
 WEIGHTS_13B_1_FILENAME = WEIGHTS_DIR / "13B/consolidated.01.pth"
 
 
 # **** helper functions ****
+
 
 def onehot_encode(toks, vocab_size=VOCAB_SIZE):
     # this allows the embedding to work in tinygrad
@@ -212,48 +276,71 @@ if __name__ == "__main__":
     print(f"using {Device.DEFAULT} backend")
     from sentencepiece import SentencePieceProcessor
 
-
     sp_model = SentencePieceProcessor(model_file=str(TOKENIZER_FILENAME))
     assert sp_model.vocab_size() == VOCAB_SIZE
 
-    parser = argparse.ArgumentParser(description='Run LLaMA 7B in tinygrad',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description="Run LLaMA 7B in tinygrad",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     # test: python3 examples/llama.py --prompt="Hello." --temperature=0
     # Hello. I'm a 20 year old male. I'm a student at the University of Texas at Austin. I'm a sophomore majoring in Computer Science.
-    parser.add_argument('--prompt', type=str, default=None,
-                        help="Phrase to start with. Without this, it goes into chatbot mode")
-    parser.add_argument('--count', type=int, default=1000, help="Max number of tokens to generate")
-    parser.add_argument('--personality', type=str, default="Stacy",
-                        help="Personality, can be Stacy, George, Gary, or Lexie")
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Phrase to start with. Without this, it goes into chatbot mode",
+    )
+    parser.add_argument(
+        "--count", type=int, default=1000, help="Max number of tokens to generate"
+    )
+    parser.add_argument(
+        "--personality",
+        type=str,
+        default="Stacy",
+        help="Personality, can be Stacy, George, Gary, or Lexie",
+    )
 
-    parser.add_argument('--temperature', type=float, default=0.7, help="Temperature in the softmax")
-    parser.add_argument('--timing', action='store_true', help="Print timing per token")
-    parser.add_argument('--profile', action='store_true', help="Output profile data to out.prof")
-    parser.add_argument('--large', action='store_true', help="Use the 13B model instead of the 7B one")
-    parser.add_argument('--tinyfake', action='store_true', help="Use the fake very small model")
+    parser.add_argument(
+        "--temperature", type=float, default=0.7, help="Temperature in the softmax"
+    )
+    parser.add_argument("--timing", action="store_true", help="Print timing per token")
+    parser.add_argument(
+        "--profile", action="store_true", help="Output profile data to out.prof"
+    )
+    parser.add_argument(
+        "--large", action="store_true", help="Use the 13B model instead of the 7B one"
+    )
+    parser.add_argument(
+        "--tinyfake", action="store_true", help="Use the fake very small model"
+    )
     args = parser.parse_args()
     chatbot = args.prompt == None
 
     # load model (you have to find the weights yourself)
     from extra.utils import fake_torch_load_zipped, get_child
 
-
     if args.large:
         model = Transformer(**args_13B)
-        with Timing("loaded weights in ", lambda
-            et_ns: f", {GlobalCounters.mem_used / 1e9:.2f} GB loaded at {GlobalCounters.mem_used / et_ns:.2f} GB/s"):
-            weights0 = fake_torch_load_zipped(open(WEIGHTS_13B_0_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1))
-            weights1 = fake_torch_load_zipped(open(WEIGHTS_13B_1_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1))
+        with Timing(
+            "loaded weights in ",
+            lambda et_ns: f", {GlobalCounters.mem_used / 1e9:.2f} GB loaded at {GlobalCounters.mem_used / et_ns:.2f} GB/s",
+        ):
+            weights0 = fake_torch_load_zipped(
+                open(WEIGHTS_13B_0_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1)
+            )
+            weights1 = fake_torch_load_zipped(
+                open(WEIGHTS_13B_1_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1)
+            )
         # eww, this makes a copy
         print("concatenating weights")
         from tqdm import tqdm
-
 
         assert set(weights0.keys()) == set(weights1.keys())
         for k, v in (t := tqdm(weights0.items())):
             # assert GlobalCounters.mem_used/1e9 < 28, "used over 28 GB"
             t.set_description(f"ram used: {GlobalCounters.mem_used / 1e9:5.2f} GB")
-            if 'rope.freqs' in k:
+            if "rope.freqs" in k:
                 continue  # no rope today
             mv = get_child(model, k)
             w0, w1 = v, weights1[k]
@@ -285,18 +372,21 @@ if __name__ == "__main__":
         model = Transformer(**args_small)
         from tinygrad.nn.optim import get_parameters
 
-
         for p in get_parameters(model):
             p.assign(np.zeros(p.shape, dtype=p.dtype.np))
     else:
         model = Transformer(**args_7B)
-        with Timing("loaded weights in ", lambda
-            et_ns: f", {GlobalCounters.mem_used / 1e9:.2f} GB loaded at {GlobalCounters.mem_used / et_ns:.2f} GB/s"):
-            weights = fake_torch_load_zipped(open(WEIGHTS_7B_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1))
+        with Timing(
+            "loaded weights in ",
+            lambda et_ns: f", {GlobalCounters.mem_used / 1e9:.2f} GB loaded at {GlobalCounters.mem_used / et_ns:.2f} GB/s",
+        ):
+            weights = fake_torch_load_zipped(
+                open(WEIGHTS_7B_FILENAME, "rb"), load_weights=getenv("WEIGHTS", 1)
+            )
 
         # assign weights (should be free)
         for k, v in weights.items():
-            if '.inner_attention.rope.freqs' in k:
+            if ".inner_attention.rope.freqs" in k:
                 continue  # no rope today
             # state_dict[k].assign(v).realize()
             get_child(model, k).assign(v).realize()
@@ -324,10 +414,13 @@ After you are done speaking, output [EOS]. You are not the User.
         user_delim = "\nUser: "
         resp_delim = "Stacy: "
         end_delim = " [EOS]\n"
-        pre_prompt += ''.join(f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items())
+        pre_prompt += "".join(
+            f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items()
+        )
     elif args.personality.lower() == "george":
         print(
-            "WARNING: AI George Hotz is terrible and is completely disowned by the real George Hotz. Stacy is much smarter.")
+            "WARNING: AI George Hotz is terrible and is completely disowned by the real George Hotz. Stacy is much smarter."
+        )
         pre_prompt = f"""Consider that the following is conversation between an AI assistant named George and User
 You are an AI version of George Hotz. You act as much as you can like George.
 You are one of the greatest computer experts in the world.
@@ -343,13 +436,15 @@ After you are done speaking, output [EOS]. You are not the User.
             "What's the complexity of matrix multiplication?": "O(n^3), though it can be faster with things like Strassen's algorithm",
             "What's a buffer overflow?": "I assume you mean a stack buffer overflow. That's when the stack is too small for the data being copied to it, and the data corrupts things beyond the buffer",
             "How many weights do you have?": "I am based off LLaMA trained by Facebook. I'm the 7B weight version",
-            "What is swap memory?": "It is when the memory is about to overflow and unused memory is freed and stored on disk"
+            "What is swap memory?": "It is when the memory is about to overflow and unused memory is freed and stored on disk",
         }
 
         user_delim = "\nUser: "
         resp_delim = "George: "
         end_delim = " [EOS]\n"
-        pre_prompt += ''.join(f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items())
+        pre_prompt += "".join(
+            f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items()
+        )
     elif args.personality.lower() == "gary":
         pre_prompt = f"""Consider that the following is conversation between an AI assistant named Gary and User
 You are Gary!
@@ -362,13 +457,15 @@ After you are done speaking, output [EOS]. You are not the User.
 """
         examples = {
             "What is your name?": "I am Gary. I used to sell cars.",
-            "What is 2+3?": "I don't know, but I can get you a great deal on a certified preowned slightly used Toyota Corolla"
+            "What is 2+3?": "I don't know, but I can get you a great deal on a certified preowned slightly used Toyota Corolla",
         }
 
         user_delim = "\nUser: "
         resp_delim = "Gary: "
         end_delim = " [EOS]\n"
-        pre_prompt += ''.join(f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items())
+        pre_prompt += "".join(
+            f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items()
+        )
     elif args.personality.lower() == "lexie":
         pre_prompt = f"""Consider that the following is conversation between an attractive young girl named Lexie and a handsome man named Chad
 You are Lexie!
@@ -383,13 +480,15 @@ After you are done speaking, output [EOS]. You are not Chad.
         examples = {
             "hi lexie": "hi chad, glad we finally met up!",
             "you look better than your pictures": "thanks! are you subscribed to my onlyfans?",
-            "i am. so how'd you end up in LA?": "i moved out here about a year ago. i want to be an actress"
+            "i am. so how'd you end up in LA?": "i moved out here about a year ago. i want to be an actress",
         }
 
         user_delim = "\nChad: "
         resp_delim = "Lexie: "
         end_delim = " [EOS]\n"
-        pre_prompt += ''.join(f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items())
+        pre_prompt += "".join(
+            f"{user_delim}{k}\n{resp_delim}{v}{end_delim}" for k, v in examples.items()
+        )
 
     # *** prompt engineers stop here ****
 
@@ -414,7 +513,6 @@ After you are done speaking, output [EOS]. You are not Chad.
     if args.profile:
         import cProfile, pstats
 
-
         profiler = cProfile.Profile()
 
     # chatbot loop
@@ -425,7 +523,7 @@ After you are done speaking, output [EOS]. You are not Chad.
             outputted += user_prompt
 
         new_toks = [sp_model.bos_id()] + sp_model.encode(outputted)
-        assert toks == new_toks[:len(toks)]
+        assert toks == new_toks[: len(toks)]
         toks = new_toks
         assert outputted == sp_model.decode(toks)
 
@@ -437,9 +535,15 @@ After you are done speaking, output [EOS]. You are not Chad.
             if args.timing:
                 print("")
             st = GlobalCounters.time_sum_s
-            with Timing("ran model in ", on_exit=(
-            lambda et: f", {(GlobalCounters.time_sum_s - st) * 1e3:.2f} ms on GPU") if DEBUG else None,
-                        enabled=args.timing):
+            with Timing(
+                "ran model in ",
+                on_exit=(
+                    lambda et: f", {(GlobalCounters.time_sum_s - st) * 1e3:.2f} ms on GPU"
+                )
+                if DEBUG
+                else None,
+                enabled=args.timing,
+            ):
                 logits = model(onehot_encode(toks[start_pos:]), start_pos).realize()
             with Timing("sync in ", enabled=args.timing):
                 tok = sample(logits, args.temperature)
@@ -452,7 +556,7 @@ After you are done speaking, output [EOS]. You are not Chad.
 
             # TODO: this is a hack to deal with spaces. i think the decode is fast though, so who cares?
             cur = sp_model.decode(toks)
-            sys.stdout.write(cur[len(outputted):])
+            sys.stdout.write(cur[len(outputted) :])
             sys.stdout.flush()
             outputted = cur
 
@@ -465,4 +569,4 @@ After you are done speaking, output [EOS]. You are not Chad.
     if args.profile:
         profiler.disable()
         stats = pstats.Stats(profiler)
-        stats.dump_stats('out.prof')
+        stats.dump_stats("out.prof")

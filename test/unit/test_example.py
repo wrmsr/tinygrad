@@ -39,7 +39,7 @@ class TestExample(unittest.TestCase):
         b = Tensor([3], device=device)
         result = a + b
         print(f"{a.numpy()} + {b.numpy()} = {result.numpy()}")
-        assert result.numpy()[0] == 5.
+        assert result.numpy()[0] == 5.0
 
     @multidevice_test
     def test_example_readme(self, device):
@@ -74,5 +74,5 @@ class TestExample(unittest.TestCase):
         assert y.grad.device == device
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

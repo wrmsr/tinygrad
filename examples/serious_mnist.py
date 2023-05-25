@@ -24,7 +24,9 @@ class SqueezeExciteBlock2D:
         self.bias2 = Tensor.scaled_uniform(1, self.filters)
 
     def __call__(self, input):
-        se = input.avg_pool2d(kernel_size=(input.shape[2], input.shape[3]))  # GlobalAveragePool2D
+        se = input.avg_pool2d(
+            kernel_size=(input.shape[2], input.shape[3])
+        )  # GlobalAveragePool2D
         se = se.reshape(shape=(-1, self.filters))
         se = se.dot(self.weight1) + self.bias1
         se = se.relu()
@@ -39,7 +41,10 @@ class ConvBlock:
         self.h, self.w = h, w
         self.inp = inp
         # init weights
-        self.cweights = [Tensor.scaled_uniform(filters, inp if i == 0 else filters, conv, conv) for i in range(3)]
+        self.cweights = [
+            Tensor.scaled_uniform(filters, inp if i == 0 else filters, conv, conv)
+            for i in range(3)
+        ]
         self.cbiases = [Tensor.scaled_uniform(1, filters, 1, 1) for i in range(3)]
         # init layers
         self._bn = BatchNorm2d(128)
@@ -56,7 +61,11 @@ class ConvBlock:
 
 class BigConvNet:
     def __init__(self):
-        self.conv = [ConvBlock(28, 28, 1), ConvBlock(28, 28, 128), ConvBlock(14, 14, 128)]
+        self.conv = [
+            ConvBlock(28, 28, 1),
+            ConvBlock(28, 28, 128),
+            ConvBlock(14, 14, 128),
+        ]
         self.weight1 = Tensor.scaled_uniform(128, 10)
         self.weight2 = Tensor.scaled_uniform(128, 10)
 
@@ -67,19 +76,19 @@ class BigConvNet:
             for par in pars:
                 print(par.shape)
                 no_pars += np.prod(par.shape)
-            print('no of parameters', no_pars)
+            print("no of parameters", no_pars)
             return pars
         else:
             return optim.get_parameters(self)
 
     def save(self, filename):
-        with open(filename + '.npy', 'wb') as f:
+        with open(filename + ".npy", "wb") as f:
             for par in optim.get_parameters(self):
                 # if par.requires_grad:
                 np.save(f, par.cpu().numpy())
 
     def load(self, filename):
-        with open(filename + '.npy', 'rb') as f:
+        with open(filename + ".npy", "rb") as f:
             for par in optim.get_parameters(self):
                 # if par.requires_grad:
                 try:
@@ -87,7 +96,7 @@ class BigConvNet:
                     if GPU:
                         par.gpu()
                 except:
-                    print('Could not load parameter')
+                    print("Could not load parameter")
 
     def forward(self, x):
         x = self.conv[0](x)
@@ -106,8 +115,10 @@ if __name__ == "__main__":
     BS = 32
 
     lmbd = 0.00025
-    lossfn = lambda out, y: sparse_categorical_crossentropy(out, y) + lmbd * (
-            model.weight1.abs() + model.weight2.abs()).sum()
+    lossfn = (
+        lambda out, y: sparse_categorical_crossentropy(out, y)
+        + lmbd * (model.weight1.abs() + model.weight2.abs()).sum()
+    )
     X_train, Y_train, X_test, Y_test = fetch_mnist()
     X_train = X_train.reshape(-1, 28, 28).astype(np.uint8)
     X_test = X_test.reshape(-1, 28, 28).astype(np.uint8)
@@ -138,4 +149,4 @@ if __name__ == "__main__":
             X_aug = X_train if epoch == 1 else augment_img(X_train)
             train(model, X_aug, Y_train, optimizer, steps=steps, lossfn=lossfn, BS=BS)
             accuracy = evaluate(model, X_test, Y_test, BS=BS)
-            model.save(f'examples/checkpoint{accuracy * 1e6:.0f}')
+            model.save(f"examples/checkpoint{accuracy * 1e6:.0f}")

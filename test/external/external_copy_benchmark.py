@@ -23,9 +23,10 @@ class TestCopy(unittest.TestCase):
             print(f"{mb * 1e3:.2f} kB, {ct * 1e3:.2f} ms, {mb / ct:.2f} MB/s")
             pts.append((mb, mb / ct))
         from matplotlib import pyplot as plt
+
         plt.plot([x[0] for x in pts], [x[1] for x in pts])
         plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -37,8 +37,11 @@ class TestAssign(unittest.TestCase):
         a.realize()
         ba2 = a.lazydata.realized
         assert ba1 != ba2 and ba1 != bb1
-        np.testing.assert_allclose(a.numpy(),
-                                   np.arange(N * N).reshape((N, N)) + np.arange(N * N).reshape((N, N)).transpose(1, 0))
+        np.testing.assert_allclose(
+            a.numpy(),
+            np.arange(N * N).reshape((N, N))
+            + np.arange(N * N).reshape((N, N)).transpose(1, 0),
+        )
 
     def test_post_permuted_assignment(self):
         a = Tensor.arange(N * N).reshape(N, N)
@@ -63,8 +66,11 @@ class TestAssign(unittest.TestCase):
           print(nm(b2), id(b2.cl))
         """
 
-        np.testing.assert_allclose(a.numpy(),
-                                   np.arange(N * N).reshape((N, N)) + np.arange(N * N).reshape((N, N)).transpose(1, 0))
+        np.testing.assert_allclose(
+            a.numpy(),
+            np.arange(N * N).reshape((N, N))
+            + np.arange(N * N).reshape((N, N)).transpose(1, 0),
+        )
 
     # TODO: is there a way to sneak in a permute such that it returns the wrong answer?
 

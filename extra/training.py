@@ -21,20 +21,21 @@ def train(
     Y_train,
     optim,
     steps,
-    BS=128, lossfn=sparse_categorical_crossentropy,
+    BS=128,
+    lossfn=sparse_categorical_crossentropy,
     transform=lambda x: x,
     target_transform=lambda x: x,
     noloss=False,
 ):
     Tensor.training = True
     losses, accuracies = [], []
-    for i in (t := trange(steps, disable=getenv('CI', False))):
+    for i in (t := trange(steps, disable=getenv("CI", False))):
         samp = np.random.randint(0, X_train.shape[0], size=(BS))
         x = Tensor(transform(X_train[samp]), requires_grad=False)
         y = target_transform(Y_train[samp])
 
         # network
-        out = model.forward(x) if hasattr(model, 'forward') else model(x)
+        out = model.forward(x) if hasattr(model, "forward") else model(x)
 
         loss = lossfn(out, y)
         optim.zero_grad()
@@ -68,10 +69,10 @@ def evaluate(
 
     def numpy_eval(Y_test, num_classes):
         Y_test_preds_out = np.zeros(list(Y_test.shape) + [num_classes])
-        for i in trange((len(Y_test) - 1) // BS + 1, disable=getenv('CI', False)):
-            x = Tensor(transform(X_test[i * BS:(i + 1) * BS]))
-            out = model.forward(x) if hasattr(model, 'forward') else model(x)
-            Y_test_preds_out[i * BS:(i + 1) * BS] = out.cpu().numpy()
+        for i in trange((len(Y_test) - 1) // BS + 1, disable=getenv("CI", False)):
+            x = Tensor(transform(X_test[i * BS : (i + 1) * BS]))
+            out = model.forward(x) if hasattr(model, "forward") else model(x)
+            Y_test_preds_out[i * BS : (i + 1) * BS] = out.cpu().numpy()
         Y_test_preds = np.argmax(Y_test_preds_out, axis=-1)
         Y_test = target_transform(Y_test)
         return (Y_test == Y_test_preds).mean(), Y_test_preds

@@ -4,10 +4,10 @@ import unittest
 import numpy as np
 
 
-if 'IMAGE' not in os.environ:
-    os.environ['IMAGE'] = '2'
-os.environ['GPU'] = '1'
-os.environ['OPT'] = '2'
+if "IMAGE" not in os.environ:
+    os.environ["IMAGE"] = "2"
+os.environ["GPU"] = "1"
+os.environ["OPT"] = "2"
 from tinygrad.tensor import Tensor
 from tinygrad.runtime.ops_gpu import CLImage
 from tinygrad.nn import Conv2d
@@ -58,5 +58,5 @@ class TestImage(unittest.TestCase):
         p2.realize()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -116,5 +116,5 @@ class TestMNIST(unittest.TestCase):
         assert evaluate(model, X_test, Y_test) > 0.94  # CPU gets 0.9494 sometimes
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

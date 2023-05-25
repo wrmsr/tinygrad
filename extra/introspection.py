@@ -17,8 +17,11 @@ def print_objects():
     gpubuffers_orphaned = [x for x in gpubuffers if x not in realized_buffers]
 
     print(
-        f"{len(tensors)} tensors allocated in {tensor_ram_used / 1e9:.2f} GB, GPU using {GlobalCounters.mem_used / 1e9:.2f} GB")
-    print(f"{len(lazybuffers)} lazybuffers {len(realized_buffers)} realized, {len(gpubuffers)} GPU buffers")
+        f"{len(tensors)} tensors allocated in {tensor_ram_used / 1e9:.2f} GB, GPU using {GlobalCounters.mem_used / 1e9:.2f} GB"
+    )
+    print(
+        f"{len(lazybuffers)} lazybuffers {len(realized_buffers)} realized, {len(gpubuffers)} GPU buffers"
+    )
     print(f"{len(gpubuffers_orphaned)} GPU buffers are orphaned")
 
     cnt = 0
@@ -35,9 +38,9 @@ def print_objects():
         cnt += 1
 
     for x in gpubuffers_orphaned:
-        if getattr(x, '_buf', None):
+        if getattr(x, "_buf", None):
             del x._buf
-        if getattr(x, '_image', None):
+        if getattr(x, "_image", None):
             del x._image
 
     return len(gpubuffers_orphaned)

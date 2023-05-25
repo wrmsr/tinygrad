@@ -19,6 +19,7 @@ from extra.utils import fake_torch_load_zipped, get_child, download_file
 
 # TODO: refactor AttnBlock, CrossAttention, CLIPAttention to share code
 
+
 class AttnBlock:
     def __init__(self, in_channels):
         self.norm = GroupNorm(32, in_channels)
@@ -56,7 +57,11 @@ class ResnetBlock:
         self.conv1 = Conv2d(in_channels, out_channels, 3, padding=1)
         self.norm2 = GroupNorm(32, out_channels)
         self.conv2 = Conv2d(out_channels, out_channels, 3, padding=1)
-        self.nin_shortcut = Conv2d(in_channels, out_channels, 1) if in_channels != out_channels else lambda x: x
+        self.nin_shortcut = (
+            Conv2d(in_channels, out_channels, 1)
+            if in_channels != out_channels
+            else lambda x: x
+        )
 
     def __call__(self, x):
         h = self.conv1(self.norm1(x).swish())
@@ -82,12 +87,17 @@ class Decoder:
 
         arr = []
         for i, s in enumerate(sz):
-            arr.append({"block":
-                            [ResnetBlock(s[1], s[0]),
-                             ResnetBlock(s[0], s[0]),
-                             ResnetBlock(s[0], s[0])]})
+            arr.append(
+                {
+                    "block": [
+                        ResnetBlock(s[1], s[0]),
+                        ResnetBlock(s[0], s[0]),
+                        ResnetBlock(s[0], s[0]),
+                    ]
+                }
+            )
             if i != 0:
-                arr[-1]['upsample'] = {"conv": Conv2d(s[0], s[0], 3, padding=1)}
+                arr[-1]["upsample"] = {"conv": Conv2d(s[0], s[0], 3, padding=1)}
         self.up = arr
 
         self.norm_out = GroupNorm(32, 128)
@@ -99,13 +109,17 @@ class Decoder:
 
         for l in self.up[::-1]:
             print("decode", x.shape)
-            for b in l['block']:
+            for b in l["block"]:
                 x = b(x)
-            if 'upsample' in l:
+            if "upsample" in l:
                 # https://pytorch.org/docs/stable/generated/torch.nn.functional.interpolate.html ?
                 bs, c, py, px = x.shape
-                x = x.reshape(bs, c, py, 1, px, 1).expand(bs, c, py, 2, px, 2).reshape(bs, c, py * 2, px * 2)
-                x = l['upsample']['conv'](x)
+                x = (
+                    x.reshape(bs, c, py, 1, px, 1)
+                    .expand(bs, c, py, 2, px, 2)
+                    .reshape(bs, c, py * 2, px * 2)
+                )
+                x = l["upsample"]["conv"](x)
             x.realize()
 
         return self.conv_out(self.norm_out(x).swish())
@@ -118,11 +132,11 @@ class Encoder:
 
         arr = []
         for i, s in enumerate(sz):
-            arr.append({"block":
-                            [ResnetBlock(s[0], s[1]),
-                             ResnetBlock(s[1], s[1])]})
+            arr.append({"block": [ResnetBlock(s[0], s[1]), ResnetBlock(s[1], s[1])]})
             if i != 3:
-                arr[-1]['downsample'] = {"conv": Conv2d(s[1], s[1], 3, stride=2, padding=(0, 1, 0, 1))}
+                arr[-1]["downsample"] = {
+                    "conv": Conv2d(s[1], s[1], 3, stride=2, padding=(0, 1, 0, 1))
+                }
         self.down = arr
 
         self.mid = Mid(512)
@@ -134,10 +148,10 @@ class Encoder:
 
         for l in self.down:
             print("encode", x.shape)
-            for b in l['block']:
+            for b in l["block"]:
                 x = b(x)
-            if 'downsample' in l:
-                x = l['downsample']['conv'](x)
+            if "downsample" in l:
+                x = l["downsample"]["conv"](x)
 
         x = self.mid(x)
         return self.conv_out(self.norm_out(x).swish())
@@ -165,19 +179,20 @@ class ResBlock:
         self.in_layers = [
             GroupNorm(32, channels),
             Tensor.silu,
-            Conv2d(channels, out_channels, 3, padding=1)
+            Conv2d(channels, out_channels, 3, padding=1),
         ]
-        self.emb_layers = [
-            Tensor.silu,
-            Linear(emb_channels, out_channels)
-        ]
+        self.emb_layers = [Tensor.silu, Linear(emb_channels, out_channels)]
         self.out_layers = [
             GroupNorm(32, out_channels),
             Tensor.silu,
             lambda x: x,  # needed for weights loading code to work
-            Conv2d(out_channels, out_channels, 3, padding=1)
+            Conv2d(out_channels, out_channels, 3, padding=1),
         ]
-        self.skip_connection = Conv2d(channels, out_channels, 1) if channels != out_channels else lambda x: x
+        self.skip_connection = (
+            Conv2d(channels, out_channels, 1)
+            if channels != out_channels
+            else lambda x: x
+        )
 
     def __call__(self, x, emb):
         h = x.sequential(self.in_layers)
@@ -193,7 +208,7 @@ class CrossAttention:
         self.to_q = Linear(query_dim, n_heads * d_head, bias=False)
         self.to_k = Linear(context_dim, n_heads * d_head, bias=False)
         self.to_v = Linear(context_dim, n_heads * d_head, bias=False)
-        self.scale = d_head ** -0.5
+        self.scale = d_head**-0.5
         self.num_heads = n_heads
         self.head_size = d_head
         self.to_out = [Linear(n_heads * d_head, query_dim)]
@@ -201,16 +216,21 @@ class CrossAttention:
     def __call__(self, x, context=None):
         context = x if context is None else context
         q, k, v = self.to_q(x), self.to_k(context), self.to_v(context)
-        q = q.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(0, 2, 1,
-                                                                              3)  # (bs, num_heads, time, head_size)
-        k = k.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(0, 2, 3,
-                                                                              1)  # (bs, num_heads, head_size, time)
-        v = v.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(0, 2, 1,
-                                                                              3)  # (bs, num_heads, time, head_size)
+        q = q.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(
+            0, 2, 1, 3
+        )  # (bs, num_heads, time, head_size)
+        k = k.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(
+            0, 2, 3, 1
+        )  # (bs, num_heads, head_size, time)
+        v = v.reshape(x.shape[0], -1, self.num_heads, self.head_size).permute(
+            0, 2, 1, 3
+        )  # (bs, num_heads, time, head_size)
 
         score = q.dot(k) * self.scale
         weights = score.softmax()  # (bs, num_heads, time, time)
-        attention = weights.dot(v).permute(0, 2, 1, 3)  # (bs, time, num_heads, head_size)
+        attention = weights.dot(v).permute(
+            0, 2, 1, 3
+        )  # (bs, time, num_heads, head_size)
 
         h_ = attention.reshape(shape=(x.shape[0], -1, self.num_heads * self.head_size))
         return h_.sequential(self.to_out)
@@ -231,7 +251,7 @@ class FeedForward:
         self.net = [
             GEGLU(dim, dim * mult),
             lambda x: x,  # needed for weights loading code to work
-            Linear(dim * mult, dim)
+            Linear(dim * mult, dim),
         ]
 
     def __call__(self, x):
@@ -259,7 +279,9 @@ class SpatialTransformer:
         self.norm = GroupNorm(32, channels)
         assert channels == n_heads * d_head
         self.proj_in = Conv2d(channels, n_heads * d_head, 1)
-        self.transformer_blocks = [BasicTransformerBlock(channels, context_dim, n_heads, d_head)]
+        self.transformer_blocks = [
+            BasicTransformerBlock(channels, context_dim, n_heads, d_head)
+        ]
         self.proj_out = Conv2d(n_heads * d_head, channels, 1)
 
     def __call__(self, x, context=None):
@@ -289,7 +311,11 @@ class Upsample:
 
     def __call__(self, x):
         bs, c, py, px = x.shape
-        x = x.reshape(bs, c, py, 1, px, 1).expand(bs, c, py, 2, px, 2).reshape(bs, c, py * 2, px * 2)
+        x = (
+            x.reshape(bs, c, py, 1, px, 1)
+            .expand(bs, c, py, 2, px, 2)
+            .reshape(bs, c, py * 2, px * 2)
+        )
         return self.conv(x)
 
 
@@ -320,12 +346,12 @@ class UNetModel:
             [ResBlock(1280, 1280, 1280), SpatialTransformer(1280, 768, 8, 160)],
             [Downsample(1280)],
             [ResBlock(1280, 1280, 1280)],
-            [ResBlock(1280, 1280, 1280)]
+            [ResBlock(1280, 1280, 1280)],
         ]
         self.middle_block = [
             ResBlock(1280, 1280, 1280),
             SpatialTransformer(1280, 768, 8, 160),
-            ResBlock(1280, 1280, 1280)
+            ResBlock(1280, 1280, 1280),
         ]
         self.output_blocks = [
             [ResBlock(2560, 1280, 1280)],
@@ -333,10 +359,18 @@ class UNetModel:
             [ResBlock(2560, 1280, 1280), Upsample(1280)],
             [ResBlock(2560, 1280, 1280), SpatialTransformer(1280, 768, 8, 160)],
             [ResBlock(2560, 1280, 1280), SpatialTransformer(1280, 768, 8, 160)],
-            [ResBlock(1920, 1280, 1280), SpatialTransformer(1280, 768, 8, 160), Upsample(1280)],
+            [
+                ResBlock(1920, 1280, 1280),
+                SpatialTransformer(1280, 768, 8, 160),
+                Upsample(1280),
+            ],
             [ResBlock(1920, 1280, 640), SpatialTransformer(640, 768, 8, 80)],  # 6
             [ResBlock(1280, 1280, 640), SpatialTransformer(640, 768, 8, 80)],
-            [ResBlock(960, 1280, 640), SpatialTransformer(640, 768, 8, 80), Upsample(640)],
+            [
+                ResBlock(960, 1280, 640),
+                SpatialTransformer(640, 768, 8, 80),
+                Upsample(640),
+            ],
             [ResBlock(960, 1280, 320), SpatialTransformer(320, 768, 8, 40)],
             [ResBlock(640, 1280, 320), SpatialTransformer(320, 768, 8, 40)],
             [ResBlock(640, 1280, 320), SpatialTransformer(320, 768, 8, 40)],
@@ -344,7 +378,7 @@ class UNetModel:
         self.out = [
             GroupNorm(32, 320),
             Tensor.silu,
-            Conv2d(320, 4, kernel_size=3, padding=1)
+            Conv2d(320, 4, kernel_size=3, padding=1),
         ]
 
     def __call__(self, x, timesteps=None, context=None):
@@ -396,14 +430,16 @@ class CLIPAttention:
         self.embed_dim = 768
         self.num_heads = 12
         self.head_dim = self.embed_dim // self.num_heads
-        self.scale = self.head_dim ** -0.5
+        self.scale = self.head_dim**-0.5
         self.k_proj = Linear(self.embed_dim, self.embed_dim)
         self.v_proj = Linear(self.embed_dim, self.embed_dim)
         self.q_proj = Linear(self.embed_dim, self.embed_dim)
         self.out_proj = Linear(self.embed_dim, self.embed_dim)
 
     def _shape(self, tensor, seq_len: int, bsz: int):
-        return tensor.reshape(bsz, seq_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        return tensor.reshape(bsz, seq_len, self.num_heads, self.head_dim).permute(
+            0, 2, 1, 3
+        )
 
     def __call__(self, hidden_states, causal_attention_mask):
         bsz, tgt_len, embed_dim = hidden_states.shape
@@ -420,7 +456,10 @@ class CLIPAttention:
 
         attn_weights = query_states @ key_states.permute(0, 2, 1)
 
-        attn_weights = attn_weights.reshape(bsz, self.num_heads, tgt_len, src_len) + causal_attention_mask
+        attn_weights = (
+            attn_weights.reshape(bsz, self.num_heads, tgt_len, src_len)
+            + causal_attention_mask
+        )
         attn_weights = attn_weights.reshape(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = attn_weights.softmax()
@@ -480,9 +519,14 @@ class CLIPTextEmbeddings:
             inputs[0][i][x] = 1
         for i, x in enumerate(position_ids):
             positions[0][i][x] = 1
-        inputs_embeds = Tensor(inputs, device=self.token_embedding['weight'].device) @ self.token_embedding['weight']
-        position_embeddings = Tensor(positions, device=self.position_embedding['weight'].device) @ \
-                              self.position_embedding['weight']
+        inputs_embeds = (
+            Tensor(inputs, device=self.token_embedding["weight"].device)
+            @ self.token_embedding["weight"]
+        )
+        position_embeddings = (
+            Tensor(positions, device=self.position_embedding["weight"].device)
+            @ self.position_embedding["weight"]
+        )
         return inputs_embeds + position_embeddings
 
 
@@ -494,7 +538,9 @@ class CLIPTextTransformer:
 
     def __call__(self, input_ids):
         x = self.embeddings(input_ids, list(range(len(input_ids))))
-        causal_attention_mask = np.triu(np.ones((1, 1, 77, 77), dtype=np.float32) * -np.inf, k=1)
+        causal_attention_mask = np.triu(
+            np.ones((1, 1, 77, 77), dtype=np.float32) * -np.inf, k=1
+        )
         x = self.encoder(x, Tensor(causal_attention_mask, device=x.device))
         return self.final_layer_norm(x)
 
@@ -518,7 +564,7 @@ def get_pairs(word):
 
 
 def whitespace_clean(text):
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     text = text.strip()
     return text
 
@@ -533,13 +579,17 @@ def bytes_to_unicode():
     To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
     And avoids mapping to whitespace/control characters the bpe code barfs on.
     """
-    bs = list(range(ord("!"), ord("~") + 1)) + list(range(ord("¡"), ord("¬") + 1)) + list(range(ord("®"), ord("ÿ") + 1))
+    bs = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(ord("¡"), ord("¬") + 1))
+        + list(range(ord("®"), ord("ÿ") + 1))
+    )
     cs = bs[:]
     n = 0
-    for b in range(2 ** 8):
+    for b in range(2**8):
         if b not in bs:
             bs.append(b)
-            cs.append(2 ** 8 + n)
+            cs.append(2**8 + n)
             n += 1
     cs = [chr(n) for n in cs]
     return dict(zip(bs, cs))
@@ -548,31 +598,36 @@ def bytes_to_unicode():
 class ClipTokenizer:
     def __init__(self, bpe_path: str = default_bpe()):
         self.byte_encoder = bytes_to_unicode()
-        merges = gzip.open(bpe_path).read().decode("utf-8").split('\n')
-        merges = merges[1:49152 - 256 - 2 + 1]
+        merges = gzip.open(bpe_path).read().decode("utf-8").split("\n")
+        merges = merges[1 : 49152 - 256 - 2 + 1]
         merges = [tuple(merge.split()) for merge in merges]
         vocab = list(bytes_to_unicode().values())
-        vocab = vocab + [v + '</w>' for v in vocab]
+        vocab = vocab + [v + "</w>" for v in vocab]
         for merge in merges:
-            vocab.append(''.join(merge))
-        vocab.extend(['<|startoftext|>', '<|endoftext|>'])
+            vocab.append("".join(merge))
+        vocab.extend(["<|startoftext|>", "<|endoftext|>"])
         self.encoder = dict(zip(vocab, range(len(vocab))))
         self.bpe_ranks = dict(zip(merges, range(len(merges))))
-        self.cache = {'<|startoftext|>': '<|startoftext|>', '<|endoftext|>': '<|endoftext|>'}
-        self.pat = self.pat = re.compile(r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[^\s]+""",
-                                         re.IGNORECASE)
+        self.cache = {
+            "<|startoftext|>": "<|startoftext|>",
+            "<|endoftext|>": "<|endoftext|>",
+        }
+        self.pat = self.pat = re.compile(
+            r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[^\s]+""",
+            re.IGNORECASE,
+        )
 
     def bpe(self, token):
         if token in self.cache:
             return self.cache[token]
-        word = tuple(token[:-1]) + (token[-1] + '</w>',)
+        word = tuple(token[:-1]) + (token[-1] + "</w>",)
         pairs = get_pairs(word)
 
         if not pairs:
-            return token + '</w>'
+            return token + "</w>"
 
         while True:
-            bigram = min(pairs, key=lambda pair: self.bpe_ranks.get(pair, float('inf')))
+            bigram = min(pairs, key=lambda pair: self.bpe_ranks.get(pair, float("inf")))
             if bigram not in self.bpe_ranks:
                 break
             first, second = bigram
@@ -598,7 +653,7 @@ class ClipTokenizer:
             if len(word) == 1:
                 break
             pairs = get_pairs(word)
-        word = ' '.join(word)
+        word = " ".join(word)
         self.cache[token] = word
         return word
 
@@ -606,8 +661,10 @@ class ClipTokenizer:
         bpe_tokens = []
         text = whitespace_clean(text.strip()).lower()
         for token in re.findall(self.pat, text):
-            token = ''.join(self.byte_encoder[b] for b in token.encode('utf-8'))
-            bpe_tokens.extend(self.encoder[bpe_token] for bpe_token in self.bpe(token).split(' '))
+            token = "".join(self.byte_encoder[b] for b in token.encode("utf-8"))
+            bpe_tokens.extend(
+                self.encoder[bpe_token] for bpe_token in self.bpe(token).split(" ")
+            )
         # Truncation, keeping two slots for start and end tokens.
         if len(bpe_tokens) > 75:
             bpe_tokens = bpe_tokens[:75]
@@ -617,10 +674,15 @@ class ClipTokenizer:
 class StableDiffusion:
     def __init__(self):
         self.alphas_cumprod = Tensor.empty(1000)
-        self.model = namedtuple("DiffusionModel", ["diffusion_model"])(diffusion_model=UNetModel())
+        self.model = namedtuple("DiffusionModel", ["diffusion_model"])(
+            diffusion_model=UNetModel()
+        )
         self.first_stage_model = AutoencoderKL()
         self.cond_stage_model = namedtuple("CondStageModel", ["transformer"])(
-            transformer=namedtuple("Transformer", ["text_model"])(text_model=CLIPTextTransformer()))
+            transformer=namedtuple("Transformer", ["text_model"])(
+                text_model=CLIPTextTransformer()
+            )
+        )
 
     # TODO: make __call__ run the model
 
@@ -647,11 +709,22 @@ class StableDiffusion:
 FILENAME = Path(__file__).parent.parent / "weights/sd-v1-4.ckpt"
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run Stable Diffusion',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--steps', type=int, default=5, help="Number of steps in diffusion")
-    parser.add_argument('--prompt', type=str, default="a horse sized cat eating a bagel", help="Phrase to render")
-    parser.add_argument('--out', type=str, default="/tmp/rendered.png", help="Output filename")
+    parser = argparse.ArgumentParser(
+        description="Run Stable Diffusion",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--steps", type=int, default=5, help="Number of steps in diffusion"
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="a horse sized cat eating a bagel",
+        help="Phrase to render",
+    )
+    parser.add_argument(
+        "--out", type=str, default="/tmp/rendered.png", help="Output filename"
+    )
     args = parser.parse_args()
 
     Tensor.no_grad = True
@@ -659,11 +732,11 @@ if __name__ == "__main__":
 
     # load in weights
     download_file(
-        'https://huggingface.co/CompVis/stable-diffusion-v-1-4-original/resolve/main/sd-v1-4.ckpt',
-        FILENAME
+        "https://huggingface.co/CompVis/stable-diffusion-v-1-4-original/resolve/main/sd-v1-4.ckpt",
+        FILENAME,
     )
     dat = fake_torch_load_zipped(open(FILENAME, "rb"))
-    for k, v in dat['state_dict'].items():
+    for k, v in dat["state_dict"].items():
         try:
             w = get_child(model, k)
         except (AttributeError, KeyError, IndexError):
@@ -671,7 +744,9 @@ if __name__ == "__main__":
             w = None
         # print(f"{str(v.shape):30s}" if v is not None else v, w.shape if w is not None else w, k)
         if w is not None:
-            assert w.shape == v.shape and w.dtype == v.dtype, f"shape or dtype mismatch. {w.shape} != {v.shape} or {w.dtype} != {v.dtype}"
+            assert (
+                w.shape == v.shape and w.dtype == v.dtype
+            ), f"shape or dtype mismatch. {w.shape} != {v.shape} or {w.dtype} != {v.dtype}"
             w.assign(v)
 
     # run through CLIP to get context
@@ -682,46 +757,50 @@ if __name__ == "__main__":
     print("got CLIP context", context.shape)
 
     prompt = tokenizer.encode("")
-    unconditional_context = model.cond_stage_model.transformer.text_model(prompt).realize()
+    unconditional_context = model.cond_stage_model.transformer.text_model(
+        prompt
+    ).realize()
     print("got unconditional CLIP context", unconditional_context.shape)
 
     # done with clip model
     del model.cond_stage_model
 
-
     def get_model_output(latent, timesteps):
         # put into diffuser
-        unconditional_latent = model.model.diffusion_model(latent, timesteps, unconditional_context).realize()
+        unconditional_latent = model.model.diffusion_model(
+            latent, timesteps, unconditional_context
+        ).realize()
         latent = model.model.diffusion_model(latent, timesteps, context).realize()
 
         unconditional_guidance_scale = 7.5
-        e_t = unconditional_latent + unconditional_guidance_scale * (latent - unconditional_latent)
+        e_t = unconditional_latent + unconditional_guidance_scale * (
+            latent - unconditional_latent
+        )
         return e_t
-
 
     timesteps = list(np.arange(1, 1000, 1000 // args.steps))
     print(f"running for {timesteps} timesteps")
     alphas = [model.alphas_cumprod.numpy()[t] for t in timesteps]
     alphas_prev = [1.0] + alphas[:-1]
 
-
     def get_x_prev_and_pred_x0(x, e_t, index):
         temperature = 1
         a_t, a_prev = alphas[index], alphas_prev[index]
         sigma_t = 0
         sqrt_one_minus_at = math.sqrt(1 - a_t)
-        sqrt_one_minus_at = Tensor([sqrt_one_minus_at]).realize()  # don't constant fold this
+        sqrt_one_minus_at = Tensor(
+            [sqrt_one_minus_at]
+        ).realize()  # don't constant fold this
         # print(a_t, a_prev, sigma_t, sqrt_one_minus_at)
 
         pred_x0 = (x - sqrt_one_minus_at * e_t) / math.sqrt(a_t)
 
         # direction pointing to x_t
-        dir_xt = math.sqrt(1. - a_prev - sigma_t ** 2) * e_t
+        dir_xt = math.sqrt(1.0 - a_prev - sigma_t**2) * e_t
         noise = sigma_t * Tensor.randn(*x.shape) * temperature
 
         x_prev = math.sqrt(a_prev) * pred_x0 + dir_xt  # + noise
         return x_prev, pred_x0
-
 
     # start with random noise
     latent = Tensor.randn(1, 4, 64, 64)
@@ -749,7 +828,6 @@ if __name__ == "__main__":
 
     # save image
     from PIL import Image
-
 
     im = Image.fromarray(dat)
     print(f"saving {args.out}")

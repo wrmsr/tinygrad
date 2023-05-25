@@ -31,8 +31,12 @@ def set_sample_count(samples_dir, sc):
 
 if len(sys.argv) < 2:
     print("python3 -m examples.vgg7 import MODELJSON MODELDIR")
-    print(" imports a waifu2x JSON vgg_7 model, i.e. waifu2x/models/vgg_7/art/scale2.0x_model.json")
-    print(" into a directory of float binaries along with a meta.txt file containing tensor sizes")
+    print(
+        " imports a waifu2x JSON vgg_7 model, i.e. waifu2x/models/vgg_7/art/scale2.0x_model.json"
+    )
+    print(
+        " into a directory of float binaries along with a meta.txt file containing tensor sizes"
+    )
     print(" weight tensors are ordered in tinygrad/ncnn form, as so: (outC,inC,H,W)")
     print(" *this format is used by all other commands in this program*")
     print("python3 -m examples.vgg7 execute MODELDIR IMG_IN IMG_OUT")
@@ -55,7 +59,9 @@ if len(sys.argv) < 2:
     print(" in addition, SAMPLES_DIR/samples_count.txt indicates sample count")
     print(" won't pad or tile, so keep image sizes sane")
     print("python3 -m examples.vgg7 samplify IMG_A IMG_B SAMPLES_DIR SIZE")
-    print(" creates overlapping micropatches (SIZExSIZE w/ 7-pixel border) for training")
+    print(
+        " creates overlapping micropatches (SIZExSIZE w/ 7-pixel border) for training"
+    )
     print(" maintains/creates samples_count.txt automatically")
     print(" unlike training, IMG_A must be exactly half the size of IMG_B")
     sys.exit(1)
@@ -67,7 +73,8 @@ vgg7 = Vgg7()
 def nansbane(p):
     if numpy.isnan(numpy.min(p.numpy())):
         raise Exception(
-            "A NaN in the model has been detected. This model will not be interacted with to prevent further damage.")
+            "A NaN in the model has been detected. This model will not be interacted with to prevent further damage."
+        )
 
 
 def load_and_save(path, save):
@@ -154,7 +161,9 @@ elif cmd == "train":
 
         sample_idx = 0
         try:
-            sample_idx = numpy.random.choice(samples_count, p=sample_probs / sample_probs.sum())
+            sample_idx = numpy.random.choice(
+                samples_count, p=sample_probs / sample_probs.sum()
+            )
         except:
             print("exception occurred (PROBABLY value-probabilities-dont-sum-to-1)")
             sample_idx = random.randint(0, samples_count - 1)
@@ -200,7 +209,7 @@ elif cmd == "train":
         rnum = rnum + 1
         # Probability management
         # there must always be a probability, no matter how slim, even if loss goes to 0
-        sample_probs[sample_idx] = max(loss_indicator, 1.e-10)
+        sample_probs[sample_idx] = max(loss_indicator, 1.0e-10)
 
     # if we were told to save every round, we already saved
     if rounds_per_save != 1:
@@ -233,8 +242,12 @@ elif cmd == "samplify":
     samples_added = 0
 
     # actual patch extraction
-    for posy in range(CONTEXT, b_img.shape[2] - (CONTEXT + sample_size - 1), sample_size):
-        for posx in range(CONTEXT, b_img.shape[3] - (CONTEXT + sample_size - 1), sample_size):
+    for posy in range(
+        CONTEXT, b_img.shape[2] - (CONTEXT + sample_size - 1), sample_size
+    ):
+        for posx in range(
+            CONTEXT, b_img.shape[3] - (CONTEXT + sample_size - 1), sample_size
+        ):
             # this is a viable patch location, add it
             # note the ranges here:
             #  + there are always CONTEXT pixels *before* the point
@@ -243,9 +256,13 @@ elif cmd == "samplify":
             #  + additionally, there are sample_size - 1 additional sample pixels
             #  + additionally, there are CONTEXT additional pixels
             #  + therefore there are CONTEXT + sample_size pixels *at & after* the point
-            patch_x = a_img[:, :, posy - CONTEXT: posy + CONTEXT + sample_size,
-                      posx - CONTEXT: posx + CONTEXT + sample_size]
-            patch_y = b_img[:, :, posy: posy + sample_size, posx: posx + sample_size]
+            patch_x = a_img[
+                :,
+                :,
+                posy - CONTEXT : posy + CONTEXT + sample_size,
+                posx - CONTEXT : posx + CONTEXT + sample_size,
+            ]
+            patch_y = b_img[:, :, posy : posy + sample_size, posx : posx + sample_size]
 
             image_save(f"{samples_base}/{str(samples_count)}a.png", patch_x)
             image_save(f"{samples_base}/{str(samples_count)}b.png", patch_y)

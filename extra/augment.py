@@ -5,7 +5,7 @@ import sys
 
 
 sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), 'test'))
+sys.path.append(os.path.join(os.getcwd(), "test"))
 from datasets import fetch_mnist
 from tqdm import trange
 
@@ -26,7 +26,6 @@ def augment_img(X, rotate=10, px=3):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-
     X_train, Y_train, X_test, Y_test = fetch_mnist()
     X_train = X_train.reshape(-1, 28, 28).astype(np.uint8)
     X_test = X_test.reshape(-1, 28, 28).astype(np.uint8)
@@ -34,14 +33,18 @@ if __name__ == "__main__":
     fig, a = plt.subplots(2, len(X))
     Xaug = augment_img(X)
     for i in range(len(X)):
-        a[0][i].imshow(X[i], cmap='gray')
-        a[1][i].imshow(Xaug[i], cmap='gray')
-        a[0][i].axis('off')
-        a[1][i].axis('off')
+        a[0][i].imshow(X[i], cmap="gray")
+        a[1][i].imshow(Xaug[i], cmap="gray")
+        a[0][i].axis("off")
+        a[1][i].axis("off")
     plt.show()
 
     # create some nice gifs for doc?!
     for i in range(10):
         im = Image.fromarray(X_train[7353 + i])
-        im_aug = [Image.fromarray(x) for x in augment_img(np.array([X_train[7353 + i]] * 100))]
-        im.save(f"aug{i}.gif", save_all=True, append_images=im_aug, duration=100, loop=0)
+        im_aug = [
+            Image.fromarray(x) for x in augment_img(np.array([X_train[7353 + i]] * 100))
+        ]
+        im.save(
+            f"aug{i}.gif", save_all=True, append_images=im_aug, duration=100, loop=0
+        )

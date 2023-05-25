@@ -15,8 +15,12 @@ class TestGraph(unittest.TestCase):
         G.clear()
 
     def helper_compare_graph(self, RG: nx.DiGraph):
-        assert nx.is_isomorphic(G, RG, node_match=lambda x, y: x["label"] == y["label"],
-                                edge_match=lambda x, y: x["label"] == y["label"] if "label" in y else True)
+        assert nx.is_isomorphic(
+            G,
+            RG,
+            node_match=lambda x, y: x["label"] == y["label"],
+            edge_match=lambda x, y: x["label"] == y["label"] if "label" in y else True,
+        )
 
     def test_add_graph(self):
         a = buf(4, 4)

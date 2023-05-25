@@ -34,7 +34,9 @@ class TestRNNT(unittest.TestCase):
             z, hc = layer(x, None)
             torch_x = torch.tensor(x.cpu().numpy())
             torch_z, torch_hc = torch_layer(torch_x)
-            np.testing.assert_allclose(z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3)
+            np.testing.assert_allclose(
+                z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3
+            )
 
         # test passing hidden
         for _ in range(3):
@@ -42,8 +44,10 @@ class TestRNNT(unittest.TestCase):
             z, hc = layer(x, hc)
             torch_x = torch.tensor(x.cpu().numpy())
             torch_z, torch_hc = torch_layer(torch_x, torch_hc)
-            np.testing.assert_allclose(z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3)
+            np.testing.assert_allclose(
+                z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3
+            )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

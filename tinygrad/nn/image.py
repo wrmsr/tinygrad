@@ -4,7 +4,9 @@ from tinygrad.lazy import get_single_root
 
 
 FLOAT16 = getenv("FLOAT16", 0)
-base_image_type = (100, 2, "imageh", np.float16) if FLOAT16 else (100, 4, "imagef", np.float32)
+base_image_type = (
+    (100, 2, "imageh", np.float16) if FLOAT16 else (100, 4, "imagef", np.float32)
+)
 
 
 def image_dot(self, w):
@@ -13,7 +15,10 @@ def image_dot(self, w):
     cin, cout = w.shape[-2], w.shape[-1]
     out_shape_t = self.shape[0:-2] + (cout, -1)
     if len(self.shape) > 1:
-        order = tuple(range(len(self.shape) - 2)) + (len(self.shape) - 1, len(self.shape) - 2)
+        order = tuple(range(len(self.shape) - 2)) + (
+            len(self.shape) - 1,
+            len(self.shape) - 2,
+        )
     else:
         order, out_shape_t = (0,), (cout,)
     worder = tuple(range(len(w.shape) - 2)) + (len(w.shape) - 1, len(w.shape) - 2)
@@ -35,8 +40,18 @@ def image_conv2d(self, weight, bias=None, groups=1, stride=1, dilation=1, paddin
     if cin % 4 != 0 and not (cin == 1 and groups % 4 == 0):
         x = x.reshape(bs, groups, cin, iy, ix)  # do this always?
         added_input_channels = 4 - (cin % 4)
-        w = w.pad(tuple((0, added_input_channels) if i == 2 else (0, 0) for i in range(len(w.shape))))
-        x = x.pad(tuple((0, added_input_channels) if i == 2 else (0, 0) for i in range(len(x.shape))))
+        w = w.pad(
+            tuple(
+                (0, added_input_channels) if i == 2 else (0, 0)
+                for i in range(len(w.shape))
+            )
+        )
+        x = x.pad(
+            tuple(
+                (0, added_input_channels) if i == 2 else (0, 0)
+                for i in range(len(x.shape))
+            )
+        )
         cin = cin + added_input_channels
         x = x.reshape(bs, groups * cin, iy, ix)
 
@@ -46,7 +61,11 @@ def image_conv2d(self, weight, bias=None, groups=1, stride=1, dilation=1, paddin
         added_output_channels = 4 - (rcout % 4)
         rcout += added_output_channels
         cout = groups * rcout
-        w = w.slice(tuple((0, rcout) if i == 1 else (0, w.shape[i]) for i in range(len(w.shape))))
+        w = w.slice(
+            tuple(
+                (0, rcout) if i == 1 else (0, w.shape[i]) for i in range(len(w.shape))
+            )
+        )
 
     # packed (note: flipping bs and iy would make the auto-padding work)
     x = x.permute(0, 2, 3, 1).reshape(bs * iy, ix * groups * cin // 4, 4)
@@ -54,23 +73,35 @@ def image_conv2d(self, weight, bias=None, groups=1, stride=1, dilation=1, paddin
     if cin == 1:
         w = w.reshape(cout // 4, 4, H * W).permute(0, 2, 1)
     elif cin_last:
-        w = w.reshape(cout // 4, 4, cin // 4, 4, H, W).permute(0, 4, 2, 5, 1, 3).reshape(cout // 4,
-                                                                                         H * cin // 4 * W * 4, 4)
+        w = (
+            w.reshape(cout // 4, 4, cin // 4, 4, H, W)
+            .permute(0, 4, 2, 5, 1, 3)
+            .reshape(cout // 4, H * cin // 4 * W * 4, 4)
+        )
     else:
-        w = w.reshape(cout // 4, 4, cin // 4, 4, H, W).permute(0, 4, 2, 5, 3, 1).reshape(cout // 4,
-                                                                                         H * cin // 4 * W * 4, 4)
+        w = (
+            w.reshape(cout // 4, 4, cin // 4, 4, H, W)
+            .permute(0, 4, 2, 5, 3, 1)
+            .reshape(cout // 4, H * cin // 4 * W * 4, 4)
+        )
 
     # contiguous creates the image, and early realize static weights (TODO: test for the static weight)
     if IMAGE >= 2:
-        x, w = x.cast(ImageDType(*base_image_type, shape=x.shape)), w.cast(ImageDType(*base_image_type, shape=w.shape))
+        x, w = x.cast(ImageDType(*base_image_type, shape=x.shape)), w.cast(
+            ImageDType(*base_image_type, shape=w.shape)
+        )
     x, w = x.contiguous(), w.contiguous()
     if get_single_root(w.lazydata).realized:
         w.realize()
 
     # expand out
     rcin_hi, rcin_lo = cin // 4 if cin >= 4 else 1, 4 if cin >= 4 else 1
-    cout_expand = [groups // 4 if cin == 1 else groups, 4 if cin == 1 else 1, rcout // 4 if rcout >= 4 else 1,
-                   4 if rcout >= 4 else 1]
+    cout_expand = [
+        groups // 4 if cin == 1 else groups,
+        4 if cin == 1 else 1,
+        rcout // 4 if rcout >= 4 else 1,
+        4 if rcout >= 4 else 1,
+    ]
     x = x.reshape(bs, iy, ix, groups, rcin_hi, rcin_lo)
     if cin_last:
         w = w.reshape(cout // 4, H, rcin_hi, W, 4, rcin_lo)
@@ -78,15 +109,34 @@ def image_conv2d(self, weight, bias=None, groups=1, stride=1, dilation=1, paddin
         w = w.reshape(cout // 4, H, rcin_hi, W, rcin_lo, 4).permute(0, 1, 2, 3, 5, 4)
 
     # padding
-    padding_ = [padding] * 4 if isinstance(padding, int) else (
-        padding if len(padding) == 4 else [padding[1], padding[1], padding[0], padding[0]])
+    padding_ = (
+        [padding] * 4
+        if isinstance(padding, int)
+        else (
+            padding
+            if len(padding) == 4
+            else [padding[1], padding[1], padding[0], padding[0]]
+        )
+    )
     x = x.slice(
-        (None, (-padding_[2], x.shape[1] + padding_[3]), (-padding_[0], x.shape[2] + padding_[1]), None, None, None))
+        (
+            None,
+            (-padding_[2], x.shape[1] + padding_[3]),
+            (-padding_[0], x.shape[2] + padding_[1]),
+            None,
+            None,
+            None,
+        )
+    )
 
     # prepare input
-    x = x.permute(0, 3, 4, 5, 1, 2)._pool((H, W), stride, dilation)  # -> (bs, groups, rcin_hi, rcin_lo, oy, ox, H, W)
+    x = x.permute(0, 3, 4, 5, 1, 2)._pool(
+        (H, W), stride, dilation
+    )  # -> (bs, groups, rcin_hi, rcin_lo, oy, ox, H, W)
     oy, ox = x.shape[4:6]
-    x = x.permute(0, 4, 5, 1, 2, 3, 6, 7).reshape(bs, oy, ox, *cout_expand[0:2], 1, 1, rcin_hi, rcin_lo, H, W)
+    x = x.permute(0, 4, 5, 1, 2, 3, 6, 7).reshape(
+        bs, oy, ox, *cout_expand[0:2], 1, 1, rcin_hi, rcin_lo, H, W
+    )
     x = x.expand(bs, oy, ox, *cout_expand, rcin_hi, rcin_lo, H, W)
 
     # prepare weights
@@ -105,7 +155,9 @@ def image_conv2d(self, weight, bias=None, groups=1, stride=1, dilation=1, paddin
 
     # undo hack for non multiples of 4 on C.rcout
     if added_output_channels != 0:
-        ret = ret.reshape(bs, oy, ox, groups, rcout)[:, :, :, :, :-added_output_channels]
+        ret = ret.reshape(bs, oy, ox, groups, rcout)[
+            :, :, :, :, :-added_output_channels
+        ]
         rcout -= added_output_channels
         cout = groups * rcout
 

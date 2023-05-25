@@ -31,7 +31,23 @@ def warp_size2(nthread):
     src_buf = CLBuffer(1, dtypes.float32)
     dst_buf = CLBuffer(1, dtypes.int32)
     cl = CLProgram("warp_size2", prg, argdtypes=[None, None, np.int32, np.int32])
-    return min([cl([nthread, 1024, 1], [nthread, 1, 1], src_buf, dst_buf, 10, 3, wait=True) for _ in range(5)]) * 1e9
+    return (
+        min(
+            [
+                cl(
+                    [nthread, 1024, 1],
+                    [nthread, 1, 1],
+                    src_buf,
+                    dst_buf,
+                    10,
+                    3,
+                    wait=True,
+                )
+                for _ in range(5)
+            ]
+        )
+        * 1e9
+    )
 
 
 @register_test
@@ -40,9 +56,11 @@ def test_warp_size():
 
 
 def reg_count(nthread, ngrp, nreg):
-    reg_declr = ''.join([f"float reg_data{i} = (float)niter + {i};\n" for i in range(nreg)])
-    reg_comp = ''.join([f"reg_data{i} *= {(i - 1) % nreg};\n" for i in range(nreg)])
-    reg_reduce = ''.join([f"out_buf[{i}] = reg_data{i};\n" for i in range(nreg)])
+    reg_declr = "".join(
+        [f"float reg_data{i} = (float)niter + {i};\n" for i in range(nreg)]
+    )
+    reg_comp = "".join([f"reg_data{i} *= {(i - 1) % nreg};\n" for i in range(nreg)])
+    reg_reduce = "".join([f"out_buf[{i}] = reg_data{i};\n" for i in range(nreg)])
     prg = f"""__kernel void reg_count(
     __global float* out_buf,
     __private const int niter
@@ -57,13 +75,24 @@ def reg_count(nthread, ngrp, nreg):
   }}"""
     out_buf = CLBuffer(1, dtypes.float32)
     cl = CLProgram("reg_count", prg, argdtypes=[None, np.int32])
-    return min([cl([nthread, ngrp, 1], [nthread, 1, 1], out_buf, 20, wait=True) for _ in range(10)]) * 1e9
+    return (
+        min(
+            [
+                cl([nthread, ngrp, 1], [nthread, 1, 1], out_buf, 20, wait=True)
+                for _ in range(10)
+            ]
+        )
+        * 1e9
+    )
 
 
 @register_test
 def test_reg_count(nthread=1, ngrp=1):
     base = reg_count(nthread, ngrp, 1)
-    return [(nreg, (reg_count(nthread, ngrp, nreg) - base) / nreg) for nreg in trange(4, 513, 4)]
+    return [
+        (nreg, (reg_count(nthread, ngrp, nreg) - base) / nreg)
+        for nreg in trange(4, 513, 4)
+    ]
 
 
 def buf_cache_hierarchy_pchase(ndata, stride=1, NCOMP=1, steps=65536):
@@ -85,20 +114,34 @@ def buf_cache_hierarchy_pchase(ndata, stride=1, NCOMP=1, steps=65536):
     in_buf = CLBuffer.fromCPU(idx_buf)
     out_buf = CLBuffer(1, dtypes.int32)
     cl = CLProgram("buf_cache_hierarchy_pchase", prg, argdtypes=[None, None, np.int32])
-    return min([cl([1, 1, 1], [1, 1, 1], in_buf, out_buf, steps, wait=True) / steps for _ in range(5)]) * 1e9
+    return (
+        min(
+            [
+                cl([1, 1, 1], [1, 1, 1], in_buf, out_buf, steps, wait=True) / steps
+                for _ in range(5)
+            ]
+        )
+        * 1e9
+    )
 
 
 @register_test
 def test_memory_latency():
     # requires cacheline < 16
-    szs = [int(1.3 ** x) for x in range(20, 70)]
-    return [(ndata, buf_cache_hierarchy_pchase(ndata, NCOMP=16, steps=128 * 1024)) for ndata in tqdm(szs)]
+    szs = [int(1.3**x) for x in range(20, 70)]
+    return [
+        (ndata, buf_cache_hierarchy_pchase(ndata, NCOMP=16, steps=128 * 1024))
+        for ndata in tqdm(szs)
+    ]
 
 
 @register_test
 def test_cacheline_size():
     # TODO: this buffer must be at least 2x the L1 cache for this test to work
-    return [(stride, buf_cache_hierarchy_pchase(4 * 65536, stride, steps=65536)) for stride in trange(1, 64)]
+    return [
+        (stride, buf_cache_hierarchy_pchase(4 * 65536, stride, steps=65536))
+        for stride in trange(1, 64)
+    ]
 
 
 def cl_read(sz, niter=1):
@@ -113,7 +156,15 @@ def cl_read(sz, niter=1):
     out_buf = CLBuffer(1, dtypes.float32)
     cl = CLProgram("copy", prg)
     # NOTE: if nay of the niters form a local group, this is wrong
-    return min([cl([sz // 16, niter, 1], [1, 1, 1], in_buf, out_buf, wait=True) for _ in range(10)]) * 1e9
+    return (
+        min(
+            [
+                cl([sz // 16, niter, 1], [1, 1, 1], in_buf, out_buf, wait=True)
+                for _ in range(10)
+            ]
+        )
+        * 1e9
+    )
 
 
 @register_test
@@ -142,7 +193,10 @@ def gflops(niter=4, nroll=4, ngroups=4096):
     cl = CLProgram("gflops", prg, options="-cl-mad-enable -cl-fast-relaxed-math")
     FLOPS = NCOMP * 2 * 2 * niter * nroll * ngroups * 32
     # NOTE: if nay of the niters form a local group, this is wrong
-    return FLOPS / (min([cl([32, ngroups, 1], [32, 1, 1], out_buf, wait=True) for _ in range(10)]) * 1e9)
+    return FLOPS / (
+        min([cl([32, ngroups, 1], [32, 1, 1], out_buf, wait=True) for _ in range(10)])
+        * 1e9
+    )
 
 
 @register_test
@@ -160,7 +214,7 @@ if __name__ == "__main__":
         plt.subplot(2, (len(tests) + 1) // 2, i + 1)
         plt.title(k)
         if k == "test_memory_latency":
-            plt.xscale('log')
+            plt.xscale("log")
         if k not in cache:
             cache[k] = test()
         plt.plot(*zip(*cache[k]))

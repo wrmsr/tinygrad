@@ -21,6 +21,7 @@ import os
 #  by providing concrete human-readable information on tensor shapes.
 # It is NOT meant to be read by machines.
 
+
 class KinneDir:
     """
     A KinneDir is an intermediate object used to save or load a model.

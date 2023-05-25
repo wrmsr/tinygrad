@@ -11,11 +11,15 @@ class Timing(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.et = time.perf_counter_ns() - self.st
         if self.enabled:
-            print(f"{self.prefix}{self.et * 1e-6:.2f} ms" + (self.on_exit(self.et) if self.on_exit else ""))
+            print(
+                f"{self.prefix}{self.et * 1e-6:.2f} ms"
+                + (self.on_exit(self.et) if self.on_exit else "")
+            )
 
 
 def enable_early_exec():
     import subprocess, multiprocessing
+
     qin: multiprocessing.Queue = multiprocessing.Queue()
     qout: multiprocessing.Queue = multiprocessing.Queue()
 
@@ -44,6 +48,7 @@ def proc(itermaker, q):
 def cross_process(itermaker, maxsize=8):
     # TODO: use cloudpickle for itermaker
     import multiprocessing
+
     q: multiprocessing.Queue = multiprocessing.Queue(maxsize)
     p = multiprocessing.Process(target=proc, args=(itermaker, q))
     p.daemon = True

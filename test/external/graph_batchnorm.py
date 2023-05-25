@@ -67,5 +67,5 @@ class TestBatchnorm(unittest.TestCase):
         model_step(lm)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

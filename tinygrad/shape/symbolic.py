@@ -7,6 +7,7 @@ from tinygrad.helpers import partition, all_same
 # NOTE: Python has different behavior for negative mod and floor div than c
 # symbolic matches the Python behavior, but the code output is agnostic, and will never have negative numbers in div or mod
 
+
 class Node:
     b: int
     min: int
@@ -91,29 +92,47 @@ class Node:
         if isinstance(self, MulNode) and b % self.b == 0 and self.b > 0:
             return self.a // (b // self.b)  # NOTE: mod negative isn't handled right
         if isinstance(self, SumNode) and factoring_allowed:
-            factors, tmp_nofactor = partition(self.nodes,
-                                              lambda x: (isinstance(x, (MulNode, NumNode))) and x.b % b == 0)
+            factors, tmp_nofactor = partition(
+                self.nodes,
+                lambda x: (isinstance(x, (MulNode, NumNode))) and x.b % b == 0,
+            )
             nofactor = []
             # ugh, i doubt this is universally right
             for x in tmp_nofactor:
                 if isinstance(x, NumNode):
                     if (x.b % b) != x.b:
-                        factors.append(Variable.num(x.b - (x.b % b)))  # python does floor division
+                        factors.append(
+                            Variable.num(x.b - (x.b % b))
+                        )  # python does floor division
                     nofactor.append(Variable.num(x.b % b))
                 else:
                     nofactor.append(x)
-            gcd = [math.gcd(x.b, b) if isinstance(x, (MulNode, NumNode)) else None for x in nofactor]
+            gcd = [
+                math.gcd(x.b, b) if isinstance(x, (MulNode, NumNode)) else None
+                for x in nofactor
+            ]
             if len(factors) > 0:
                 # these don't have to be the same, just having a common factor
                 if len(gcd) > 0 and all_same(gcd) and gcd[0] is not None and gcd[0] > 1:
                     nofactor_term = Variable.sum(
-                        [(x.a * (x.b // gcd[0])) if isinstance(x, MulNode) else Variable.num(x.b // gcd[0]) for x in
-                         nofactor]) // (b // gcd[0])
+                        [
+                            (x.a * (x.b // gcd[0]))
+                            if isinstance(x, MulNode)
+                            else Variable.num(x.b // gcd[0])
+                            for x in nofactor
+                        ]
+                    ) // (b // gcd[0])
                 else:
                     nofactor_term = Variable.sum(nofactor) // b
                 return Variable.sum(
-                    [(x.a * (x.b // b)) if isinstance(x, MulNode) else Variable.num(x.b // b) for x in factors] + [
-                        nofactor_term])
+                    [
+                        (x.a * (x.b // b))
+                        if isinstance(x, MulNode)
+                        else Variable.num(x.b // b)
+                        for x in factors
+                    ]
+                    + [nofactor_term]
+                )
             else:
                 muls = [x.b for x in nofactor if isinstance(x, MulNode)]
                 for m in muls:
@@ -123,7 +142,9 @@ class Node:
         if self.min < 0:
             offset = self.min // b
             # factor out an "offset" to make the numerator positive. don't allowing factoring again
-            return (self + -offset * b).__floordiv__(b, factoring_allowed=False) + offset
+            return (self + -offset * b).__floordiv__(
+                b, factoring_allowed=False
+            ) + offset
         return create_opnode(DivNode, self, b)
 
     def __mod__(self, b: int):
@@ -171,13 +192,24 @@ class Node:
         # TODO: this is slow!
         nodes, mul_nodes = partition(nodes, lambda x: not isinstance(x, MulNode))
         mul_nodes += [MulNode(x, 1) for x in nodes]
-        mul_nodes = sorted(mul_nodes, key=lambda x: x.a.render())  # group by equality (ugh, uses render!)
-        new_nodes = [k * sum(x.b for x in g) for k, g in itertools.groupby(mul_nodes, key=lambda x: x.a)]
-        nodes = [x if not isinstance(x, MulNode) or x.b != 1 else x.a for x in new_nodes]
+        mul_nodes = sorted(
+            mul_nodes, key=lambda x: x.a.render()
+        )  # group by equality (ugh, uses render!)
+        new_nodes = [
+            k * sum(x.b for x in g)
+            for k, g in itertools.groupby(mul_nodes, key=lambda x: x.a)
+        ]
+        nodes = [
+            x if not isinstance(x, MulNode) or x.b != 1 else x.a for x in new_nodes
+        ]
 
         # filter 0s
         nodes = [x for x in nodes if x.min != 0 or x.max != 0]
-        return create_rednode(SumNode, nodes) if len(nodes) > 1 else (nodes[0] if len(nodes) == 1 else NumNode(0))
+        return (
+            create_rednode(SumNode, nodes)
+            if len(nodes) > 1
+            else (nodes[0] if len(nodes) == 1 else NumNode(0))
+        )
 
     @staticmethod
     def ands(nodes: List[Node]) -> Node:
@@ -186,10 +218,15 @@ class Node:
 
         # filter 1s
         nodes = [x for x in nodes if x.min != x.max]
-        return create_rednode(AndNode, nodes) if len(nodes) > 1 else (nodes[0] if len(nodes) == 1 else NumNode(1))
+        return (
+            create_rednode(AndNode, nodes)
+            if len(nodes) > 1
+            else (nodes[0] if len(nodes) == 1 else NumNode(1))
+        )
 
 
 # 4 basic node types
+
 
 class Variable(Node):
     def __new__(cls, expr: str, nmin: int, nmax: int):
@@ -208,14 +245,17 @@ class NumNode(Node):
 
 
 def create_node(ret: Node):
-    assert ret.min <= ret.max, f"min greater than max! {ret.min} {ret.max} when creating {type(ret)} {ret}"
+    assert (
+        ret.min <= ret.max
+    ), f"min greater than max! {ret.min} {ret.max} when creating {type(ret)} {ret}"
     if ret.min == ret.max:
         return NumNode(ret.min)
     return ret
 
 
 class OpNode(Node):
-    def __init__(self, a: Node, b: int): self.a, self.b = a, b
+    def __init__(self, a: Node, b: int):
+        self.a, self.b = a, b
 
 
 class GeNode(OpNode):
@@ -251,13 +291,17 @@ def create_opnode(typ: Type[OpNode], a: Node, b: int):
         ret.min, ret.max = a.min // b, a.max // b
     elif typ == ModNode:
         assert a.min >= 0
-        ret.min, ret.max = (0, b - 1) if a.max - a.min >= b or (a.min != a.max and a.min % b >= a.max % b) else (
-        a.min % b, a.max % b)
+        ret.min, ret.max = (
+            (0, b - 1)
+            if a.max - a.min >= b or (a.min != a.max and a.min % b >= a.max % b)
+            else (a.min % b, a.max % b)
+        )
     return create_node(ret)
 
 
 class RedNode(Node):
-    def __init__(self, nodes: List[Node]): self.nodes = nodes
+    def __init__(self, nodes: List[Node]):
+        self.nodes = nodes
 
 
 class SumNode(RedNode):
@@ -278,7 +322,9 @@ def create_rednode(typ: Type[RedNode], nodes: List[Node]):
 
 
 render_python: Dict[Type, Callable] = {
-    Variable: lambda self, ops, ctx: f"{self.expr}[{self.min}-{self.max}]" if ctx == "DEBUG" else f"{self.expr}",
+    Variable: lambda self, ops, ctx: f"{self.expr}[{self.min}-{self.max}]"
+    if ctx == "DEBUG"
+    else f"{self.expr}",
     NumNode: lambda self, ops, ctx: f"{self.b}",
     MulNode: lambda self, ops, ctx: f"({self.a.render(ops, ctx)}*{self.b})",
     DivNode: lambda self, ops, ctx: f"({self.a.render(ops, ctx)}//{self.b})",
@@ -286,5 +332,5 @@ render_python: Dict[Type, Callable] = {
     GeNode: lambda self, ops, ctx: f"({self.a.render(ops, ctx)}>={self.b})",
     LtNode: lambda self, ops, ctx: f"({self.a.render(ops, ctx)}<{self.b})",
     SumNode: lambda self, ops, ctx: f"({'+'.join(sorted([x.render(ops, ctx) for x in self.nodes]))})",
-    AndNode: lambda self, ops, ctx: f"({' and '.join(sorted([x.render(ops, ctx) for x in self.nodes]))})"
+    AndNode: lambda self, ops, ctx: f"({' and '.join(sorted([x.render(ops, ctx) for x in self.nodes]))})",
 }

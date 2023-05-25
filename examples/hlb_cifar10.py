@@ -21,13 +21,25 @@ class ConvGroup:
     def __init__(self, channels_in, channels_out, short, se=True):
         self.short, self.se = short, se and not short
         self.conv = [
-            nn.Conv2d(channels_in if i == 0 else channels_out, channels_out, kernel_size=3, padding=1, bias=False) for i
-            in range(1 if short else 3)]
-        self.norm = [nn.BatchNorm2d(channels_out, track_running_stats=False, eps=1e-12, momentum=0.8) for _ in
-                     range(1 if short else 3)]
+            nn.Conv2d(
+                channels_in if i == 0 else channels_out,
+                channels_out,
+                kernel_size=3,
+                padding=1,
+                bias=False,
+            )
+            for i in range(1 if short else 3)
+        ]
+        self.norm = [
+            nn.BatchNorm2d(
+                channels_out, track_running_stats=False, eps=1e-12, momentum=0.8
+            )
+            for _ in range(1 if short else 3)
+        ]
         if self.se:
-            self.se1, self.se2 = nn.Linear(channels_out, channels_out // 16), nn.Linear(channels_out // 16,
-                                                                                        channels_out)
+            self.se1, self.se2 = nn.Linear(channels_out, channels_out // 16), nn.Linear(
+                channels_out // 16, channels_out
+            )
 
     def __call__(self, x):
         x = self.conv[0](x).max_pool2d(2)
@@ -35,8 +47,13 @@ class ConvGroup:
         if self.short:
             return x
         residual = x
-        mult = self.se2(self.se1(residual.mean((2, 3))).relu()).sigmoid().reshape(x.shape[0], x.shape[1], 1,
-                                                                                  1) if self.se else 1.0
+        mult = (
+            self.se2(self.se1(residual.mean((2, 3))).relu())
+            .sigmoid()
+            .reshape(x.shape[0], x.shape[1], 1, 1)
+            if self.se
+            else 1.0
+        )
         x = self.norm[1](self.conv[1](x)).relu()
         x = self.norm[2](self.conv[2](x) * mult).relu()
         return x + residual
@@ -53,11 +70,12 @@ class SpeedyResNet:
             ConvGroup(128, 256, short=True),
             ConvGroup(256, 512, short=False),
             lambda x: x.max((2, 3)),
-            nn.Linear(512, num_classes, bias=False)
+            nn.Linear(512, num_classes, bias=False),
         ]
 
     # note, pytorch just uses https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html instead of log_softmax
-    def __call__(self, x): return x.sequential(self.net).log_softmax()
+    def __call__(self, x):
+        return x.sequential(self.net).log_softmax()
 
 
 from tinygrad.jit import TinyJit
@@ -89,7 +107,9 @@ def train_cifar():
     BS, STEPS = getenv("BS", 512), getenv("STEPS", 10)
     if getenv("FAKEDATA"):
         N = 2048
-        X_train = np.random.default_rng().standard_normal(size=(N, 3, 32, 32), dtype=np.float32)
+        X_train = np.random.default_rng().standard_normal(
+            size=(N, 3, 32, 32), dtype=np.float32
+        )
         Y_train = np.random.randint(0, 10, size=(N), dtype=np.int32)
         X_test, Y_test = X_train, Y_train
     else:
@@ -102,6 +122,7 @@ def train_cifar():
     # init weights with torch
     if getenv("TORCHWEIGHTS"):
         from examples.hlb_cifar10_torch import SpeedyResNet as SpeedyResNetTorch
+
         torch_model = SpeedyResNetTorch()
         model_state_dict = optim.get_state_dict(model)
         torch_state_dict = torch_model.state_dict()
@@ -110,9 +131,13 @@ def train_cifar():
             model_state_dict[k].assign(Tensor(v.detach().numpy())).realize()
 
     if getenv("ADAM"):
-        optimizer = optim.Adam(optim.get_parameters(model), lr=Tensor([0.001]).realize())
+        optimizer = optim.Adam(
+            optim.get_parameters(model), lr=Tensor([0.001]).realize()
+        )
     else:
-        optimizer = optim.SGD(optim.get_parameters(model), lr=0.01, momentum=0.85, nesterov=True)
+        optimizer = optim.SGD(
+            optim.get_parameters(model), lr=0.01, momentum=0.85, nesterov=True
+        )
 
     # 97 steps in 2 seconds = 20ms / step
     # step is 1163.42 GOPS = 56 TFLOPS!!!, 41% of max 136
@@ -132,7 +157,8 @@ def train_cifar():
             loss = (out * Yt).mean().numpy()[0]
             correct = outs == Yt.numpy().argmin(axis=1)
             print(
-                f"eval {sum(correct)}/{len(correct)} {sum(correct) / len(correct) * 100.0:.2f}%, {loss:7.2f} val_loss")
+                f"eval {sum(correct)}/{len(correct)} {sum(correct) / len(correct) * 100.0:.2f}%, {loss:7.2f} val_loss"
+            )
         if STEPS == 0:
             break
         GlobalCounters.reset()
@@ -143,7 +169,8 @@ def train_cifar():
         loss_cpu = loss.numpy()[0]
         cl = time.monotonic()
         print(
-            f"{i:3d} {(cl - st) * 1000.0:7.2f} ms run, {(et - st) * 1000.0:7.2f} ms python, {(cl - et) * 1000.0:7.2f} ms CL, {loss_cpu:7.2f} loss, {GlobalCounters.mem_used / 1e9:.2f} GB used, {GlobalCounters.global_ops * 1e-9 / (cl - st):9.2f} GFLOPS")
+            f"{i:3d} {(cl - st) * 1000.0:7.2f} ms run, {(et - st) * 1000.0:7.2f} ms python, {(cl - et) * 1000.0:7.2f} ms CL, {loss_cpu:7.2f} loss, {GlobalCounters.mem_used / 1e9:.2f} GB used, {GlobalCounters.global_ops * 1e-9 / (cl - st):9.2f} GFLOPS"
+        )
 
     # train(model, X, Y, optimizer, steps=X.shape[0]//BS, BS=BS)
     # evaluate(model, X_test, Y_test)

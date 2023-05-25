@@ -2,13 +2,25 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import os, math, functools
 import numpy as np
-from typing import Tuple, Union, List, NamedTuple, Final, Iterator, ClassVar, Optional, Callable, Any
+from typing import (
+    Tuple,
+    Union,
+    List,
+    NamedTuple,
+    Final,
+    Iterator,
+    ClassVar,
+    Optional,
+    Callable,
+    Any,
+)
 
 
 ShapeType = Tuple[int, ...]
 
 
 # NOTE: helpers is not allowed to import from anything else in tinygrad
+
 
 def dedup(x):
     return list(dict.fromkeys(x))  # retains list order
@@ -19,12 +31,19 @@ def prod(x: Union[List[int], Tuple[int, ...]]) -> int:
 
 
 def argfix(*x):
-    return tuple() if len(x) == 0 else tuple(x[0]) if isinstance(x[0], (tuple, list)) else tuple(x)
+    return (
+        tuple()
+        if len(x) == 0
+        else tuple(x[0])
+        if isinstance(x[0], (tuple, list))
+        else tuple(x)
+    )
 
 
 def argsort(x):
-    return type(x)(sorted(range(len(x)),
-                          key=x.__getitem__))  # https://stackoverflow.com/questions/3382352/equivalent-of-numpy-argsort-in-basic-python
+    return type(x)(
+        sorted(range(len(x)), key=x.__getitem__)
+    )  # https://stackoverflow.com/questions/3382352/equivalent-of-numpy-argsort-in-basic-python
 
 
 def all_same(items):
@@ -32,7 +51,11 @@ def all_same(items):
 
 
 def colored(st, color, background=False, bright=False):
-    return f"\u001b[{10 * background + 60 * bright + 30 + ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'].index(color)}m{st}\u001b[0m" if color is not None else st  # replace the termcolor library with one line
+    return (
+        f"\u001b[{10 * background + 60 * bright + 30 + ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'].index(color)}m{st}\u001b[0m"
+        if color is not None
+        else st
+    )  # replace the termcolor library with one line
 
 
 def partition(lst, fxn):
@@ -61,13 +84,15 @@ DEBUG, IMAGE = getenv("DEBUG", 0), getenv("IMAGE", 0)
 
 # **** tinygrad now supports dtypes! *****
 
+
 class DType(NamedTuple):
     priority: int  # this determines when things get upcasted
     itemsize: int
     name: str
     np: type  # TODO: someday this will be removed with the "remove numpy" project
 
-    def __repr__(self): return f"dtypes.{self.name}"
+    def __repr__(self):
+        return f"dtypes.{self.name}"
 
 
 # dependent typing?
@@ -76,23 +101,38 @@ class ImageDType(DType):
         return super().__new__(cls, priority, itemsize, name, np)
 
     def __init__(self, priority, itemsize, name, np, shape):
-        self.shape: Tuple[int, ...] = shape  # arbitrary arg for the dtype, used in image for the shape
+        self.shape: Tuple[
+            int, ...
+        ] = shape  # arbitrary arg for the dtype, used in image for the shape
         super().__init__()
 
-    def __repr__(self): return f"dtypes.{self.name}({self.shape})"
+    def __repr__(self):
+        return f"dtypes.{self.name}({self.shape})"
 
 
 class LazyNumpyArray:
-    def __init__(self, fxn, shape, dtype): self.fxn, self.shape, self.dtype = fxn, shape, dtype
+    def __init__(self, fxn, shape, dtype):
+        self.fxn, self.shape, self.dtype = fxn, shape, dtype
 
-    def __call__(self) -> np.ndarray: return np.require(self.fxn(self) if callable(self.fxn) else self.fxn,
-                                                        dtype=self.dtype, requirements='C').reshape(self.shape)
+    def __call__(self) -> np.ndarray:
+        return np.require(
+            self.fxn(self) if callable(self.fxn) else self.fxn,
+            dtype=self.dtype,
+            requirements="C",
+        ).reshape(self.shape)
 
-    def reshape(self, new_shape): return LazyNumpyArray(self.fxn, new_shape, self.dtype)
+    def reshape(self, new_shape):
+        return LazyNumpyArray(self.fxn, new_shape, self.dtype)
 
-    def copy(self): return self if callable(self.fxn) else LazyNumpyArray(self.fxn, self.shape, self.dtype)
+    def copy(self):
+        return (
+            self
+            if callable(self.fxn)
+            else LazyNumpyArray(self.fxn, self.shape, self.dtype)
+        )
 
-    def astype(self, typ): return LazyNumpyArray(self.fxn, self.shape, typ)
+    def astype(self, typ):
+        return LazyNumpyArray(self.fxn, self.shape, typ)
 
 
 @dataclass
@@ -103,7 +143,8 @@ class dtypes:
     int64: Final[DType] = DType(2, 8, "int64", np.int64)
 
     @staticmethod
-    def from_np(x) -> DType: return asdict(dtypes())[np.dtype(x).name]
+    def from_np(x) -> DType:
+        return asdict(dtypes())[np.dtype(x).name]
 
 
 class GlobalCounters:
@@ -115,4 +156,11 @@ class GlobalCounters:
     cache: ClassVar[Optional[List[Tuple[Callable, Any]]]] = None
 
     @staticmethod
-    def reset(): GlobalCounters.global_ops, GlobalCounters.global_mem, GlobalCounters.time_sum_s, GlobalCounters.kernel_count, GlobalCounters.cache = 0, 0, 0.0, 0, None
+    def reset():
+        (
+            GlobalCounters.global_ops,
+            GlobalCounters.global_mem,
+            GlobalCounters.time_sum_s,
+            GlobalCounters.kernel_count,
+            GlobalCounters.cache,
+        ) = (0, 0, 0.0, 0, None)

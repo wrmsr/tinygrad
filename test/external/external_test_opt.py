@@ -17,7 +17,7 @@ from tinygrad.ops import GlobalCounters, MovementOps, ReduceOps
 from tinygrad.lazy import PUSH_PERMUTES
 
 
-class CLCache():
+class CLCache:
     def __init__(self, allowed=None, strict=False, preclear=True):
         self.allowed, self.strict, self.preclear = allowed, strict, preclear
 
@@ -31,11 +31,14 @@ class CLCache():
         print("cache: entering")
 
     def __exit__(self, type, value, traceback):
-        print(f"cache: exiting with size {len(GlobalCounters.cache)}",
-              f"allowed {self.allowed}" if self.allowed is not None else "")
+        print(
+            f"cache: exiting with size {len(GlobalCounters.cache)}",
+            f"allowed {self.allowed}" if self.allowed is not None else "",
+        )
         if self.allowed is not None:
             assert len(GlobalCounters.cache) <= self.allowed and (
-                not self.strict or len(GlobalCounters.cache) == self.allowed), "used too many kernels!"
+                not self.strict or len(GlobalCounters.cache) == self.allowed
+            ), "used too many kernels!"
         GlobalCounters.cache = None
 
 
@@ -97,12 +100,22 @@ class TestInferenceMinKernels(unittest.TestCase):
 
     def test_llama(self):
         from examples.llama import Transformer, onehot_encode
-        args_tiny = {"dim": 512, "multiple_of": 256, "n_heads": 8, "n_layers": 4, "norm_eps": 1e-05, "vocab_size": 1000}
+
+        args_tiny = {
+            "dim": 512,
+            "multiple_of": 256,
+            "n_heads": 8,
+            "n_layers": 4,
+            "norm_eps": 1e-05,
+            "vocab_size": 1000,
+        }
         model = Transformer(**args_tiny)
         for p in get_parameters(model):
             p.assign(np.zeros(p.shape, dtype=p.dtype.np))
         with CLCache(85):
-            model(onehot_encode([1, 2, 3, 4], vocab_size=args_tiny['vocab_size']), 0).realize()
+            model(
+                onehot_encode([1, 2, 3, 4], vocab_size=args_tiny["vocab_size"]), 0
+            ).realize()
 
 
 @unittest.skipUnless(Device.DEFAULT == "GPU", "Not Implemented")
@@ -119,22 +132,32 @@ class TestOptBinOp(unittest.TestCase):
                 d.realize()
             assert len(GlobalCounters.cache) == allowed, "binop was rerun!"
         if f2 is not None:
-            np.testing.assert_allclose(c.numpy().ravel(), d.numpy().ravel(), rtol=1e-3, atol=1e-5)
+            np.testing.assert_allclose(
+                c.numpy().ravel(), d.numpy().ravel(), rtol=1e-3, atol=1e-5
+            )
 
     def test_no_binop_rerun(self):
-        return self._test_no_binop_rerun(lambda a, b: a * b, lambda a, b: (a * b).reshape(16, 16, 1))
+        return self._test_no_binop_rerun(
+            lambda a, b: a * b, lambda a, b: (a * b).reshape(16, 16, 1)
+        )
 
     def test_no_binop_rerun_alt(self):
-        return self._test_no_binop_rerun(lambda a, b: (a * b).reshape(16, 16, 1), lambda a, b: a * b)
+        return self._test_no_binop_rerun(
+            lambda a, b: (a * b).reshape(16, 16, 1), lambda a, b: a * b
+        )
 
     def test_no_binop_rerun_reduce_broadcast(self):
-        return self._test_no_binop_rerun(lambda a, b: a.sum() + b, lambda a, b: a.sum().reshape(1, 1) + b, allowed=2)
+        return self._test_no_binop_rerun(
+            lambda a, b: a.sum() + b, lambda a, b: a.sum().reshape(1, 1) + b, allowed=2
+        )
 
     def test_no_binop_rerun_transposed(self):
         return self._test_no_binop_rerun(lambda a, b: (a.T * b.T).T, lambda a, b: a * b)
 
     def test_no_binop_rerun_mid_reshape(self):
-        return self._test_no_binop_rerun(lambda a, b: (a * b).reshape(256) + a.reshape(256))
+        return self._test_no_binop_rerun(
+            lambda a, b: (a * b).reshape(256) + a.reshape(256)
+        )
 
     # currently non working tests
     # def test_no_binop_rerun_preshape(self): return self._test_no_binop_rerun(lambda a,b: a.reshape(16, 16, 1)*b.reshape(16, 16, 1), lambda a,b: a*b)
@@ -151,7 +174,7 @@ class TestOptReduceLoop(unittest.TestCase):
         with CLCache():
             t = a.sum(0)
             b = t.reshape(16, 1).expand(16, 16).sum(0)
-            c = (t + b)
+            c = t + b
             c.realize()
             assert len(GlobalCounters.cache) == 2, "loop left fusion broken"
 
@@ -161,7 +184,7 @@ class TestOptReduceLoop(unittest.TestCase):
         with CLCache():
             t = a.sum(0)
             b = t.reshape(16, 1).expand(16, 16).sum(0)
-            c = (b + t)
+            c = b + t
             c.realize()
             assert len(GlobalCounters.cache) == 2, "loop right fusion broken"
 
@@ -195,7 +218,9 @@ class TestOpt(unittest.TestCase):
         with CLCache():
             ret = img.sum() + addme
             ret.realize()
-            assert len(GlobalCounters.cache) == 1, "optimizer didn't fold reduce/elementwise"
+            assert (
+                len(GlobalCounters.cache) == 1
+            ), "optimizer didn't fold reduce/elementwise"
         assert ret.numpy()[0] == 33
 
     def test_fold_batchnorm(self):
@@ -206,7 +231,9 @@ class TestOpt(unittest.TestCase):
         with CLCache():
             img_bn = bn(img).realize()
             print(img_bn)
-            assert len(GlobalCounters.cache) == 3, f"optimizer didn't fold batchnorm, got {len(GlobalCounters.cache)}"
+            assert (
+                len(GlobalCounters.cache) == 3
+            ), f"optimizer didn't fold batchnorm, got {len(GlobalCounters.cache)}"
         Tensor.training = False
 
     def test_fold_conv_sgd(self):
@@ -222,8 +249,11 @@ class TestOpt(unittest.TestCase):
             # TODO: this should be 4, but the sum output child stays around
             # with pushing_permutes it can be 3
             # TODO: broken with optim fixes
-            assert len(GlobalCounters.cache) in [4, 5,
-                                                 6], f"optimizer didn't fold conv-backward SGD, got {len(GlobalCounters.cache)}"
+            assert len(GlobalCounters.cache) in [
+                4,
+                5,
+                6,
+            ], f"optimizer didn't fold conv-backward SGD, got {len(GlobalCounters.cache)}"
         Tensor.training = False
 
     def test_fold_2convs_sgd(self):
@@ -276,8 +306,9 @@ class TestOpt(unittest.TestCase):
         img_conv = bn(c1(img)).relu().realize()
         with CLCache():
             img_conv = bn(c1(img)).relu().realize()
-            assert len(
-                GlobalCounters.cache) == 1, f"optimizer didn't fold conv-batchnorm at test time, got {len(GlobalCounters.cache)}"
+            assert (
+                len(GlobalCounters.cache) == 1
+            ), f"optimizer didn't fold conv-batchnorm at test time, got {len(GlobalCounters.cache)}"
 
     def test_fold_conv_batchnorm(self):
         Tensor.training = True
@@ -287,8 +318,9 @@ class TestOpt(unittest.TestCase):
         with CLCache():
             img_conv = bn(c1(img)).relu().realize()
             print(img_conv)
-            assert len(
-                GlobalCounters.cache) == 4, f"optimizer didn't fold conv-batchnorm, got {len(GlobalCounters.cache)}"
+            assert (
+                len(GlobalCounters.cache) == 4
+            ), f"optimizer didn't fold conv-batchnorm, got {len(GlobalCounters.cache)}"
         Tensor.training = False
 
     def test_fold_conv_elu(self):
@@ -325,7 +357,9 @@ class TestOpt(unittest.TestCase):
             d = c.permute(1, 0).contiguous()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(a.numpy().sum(2).transpose(1, 0), d.numpy(), rtol=1e-3, atol=1e-5)
+        np.testing.assert_allclose(
+            a.numpy().sum(2).transpose(1, 0), d.numpy(), rtol=1e-3, atol=1e-5
+        )
         if PUSH_PERMUTES:
             assert cache_len == 1, "permute wasn't pushed!"
 
@@ -336,7 +370,12 @@ class TestOpt(unittest.TestCase):
             d = c.reshape(16, 16).permute(1, 0).contiguous()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(a.numpy().sum(-1).reshape(16, 16).transpose(1, 0), d.numpy(), rtol=1e-3, atol=1e-5)
+        np.testing.assert_allclose(
+            a.numpy().sum(-1).reshape(16, 16).transpose(1, 0),
+            d.numpy(),
+            rtol=1e-3,
+            atol=1e-5,
+        )
         if PUSH_PERMUTES:
             assert cache_len == 1, "permute wasn't pushed!"
 
@@ -347,8 +386,12 @@ class TestOpt(unittest.TestCase):
             d = c.reshape(16, 1, 16).permute(2, 1, 0).contiguous()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(a.numpy().sum(-1).reshape(16, 1, 16).transpose(2, 1, 0), d.numpy(), rtol=1e-3,
-                                   atol=1e-5)
+        np.testing.assert_allclose(
+            a.numpy().sum(-1).reshape(16, 1, 16).transpose(2, 1, 0),
+            d.numpy(),
+            rtol=1e-3,
+            atol=1e-5,
+        )
         if PUSH_PERMUTES:
             assert cache_len == 1, "permute wasn't pushed!"
 
@@ -362,8 +405,12 @@ class TestOpt(unittest.TestCase):
             d = c.reshape(4, 4, 4, 4).permute(2, 3, 0, 1).contiguous()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(a.numpy().sum(2).transpose(1, 0).reshape(4, 4, 4, 4), d.numpy(), rtol=1e-3,
-                                   atol=1e-5)
+        np.testing.assert_allclose(
+            a.numpy().sum(2).transpose(1, 0).reshape(4, 4, 4, 4),
+            d.numpy(),
+            rtol=1e-3,
+            atol=1e-5,
+        )
         if PUSH_PERMUTES:
             assert cache_len == 1, "permute wasn't pushed!"
 
@@ -376,7 +423,9 @@ class TestOpt(unittest.TestCase):
             c.realize()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(c.numpy().transpose(1, 0), d.numpy(), rtol=1e-3, atol=1e-5)
+        np.testing.assert_allclose(
+            c.numpy().transpose(1, 0), d.numpy(), rtol=1e-3, atol=1e-5
+        )
         assert cache_len == 1, "reduceop was rerun!"
 
     @unittest.skipIf(PUSH_PERMUTES, "this test is brokem with PUSH_PERMUTES")
@@ -388,7 +437,9 @@ class TestOpt(unittest.TestCase):
             c.realize()
             d.realize()
             cache_len = len(GlobalCounters.cache)
-        np.testing.assert_allclose(c.numpy(), d.numpy().transpose(1, 0), rtol=1e-3, atol=1e-5)
+        np.testing.assert_allclose(
+            c.numpy(), d.numpy().transpose(1, 0), rtol=1e-3, atol=1e-5
+        )
         assert cache_len == 1, "reduceop was rerun!"
 
     def test_fold_with_contiguous(self):
@@ -401,5 +452,5 @@ class TestOpt(unittest.TestCase):
         assert cache_len == 1, "contiguous wasn't folded"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -9,12 +9,13 @@ from tinygrad.tensor import Tensor, Device
 
 def start_profile():
     import time
+
     pr = cProfile.Profile(timer=lambda: int(time.time() * 1e9), timeunit=1e-6)
     pr.enable()
     return pr
 
 
-def stop_profile(pr, sort='cumtime'):
+def stop_profile(pr, sort="cumtime"):
     pr.disable()
     ps = pstats.Stats(pr)
     ps.strip_dirs()
@@ -23,7 +24,6 @@ def stop_profile(pr, sort='cumtime'):
 
 
 class TestConvSpeed(unittest.TestCase):
-
     def test_mnist(self):
         # https://keras.io/examples/vision/mnist_convnet/
         conv = 3
@@ -56,11 +56,11 @@ class TestConvSpeed(unittest.TestCase):
             et1 = time.time()
             out.backward()
             et2 = time.time()
-            fpt += (et1 - et0)
-            bpt += (et2 - et1)
+            fpt += et1 - et0
+            bpt += et2 - et1
 
-        fpt_baseline = (fpt * 1000 / cnt)
-        bpt_baseline = (bpt * 1000 / cnt)
+        fpt_baseline = fpt * 1000 / cnt
+        bpt_baseline = bpt * 1000 / cnt
         print("torch forward pass:  %.3f ms" % fpt_baseline)
         print("torch backward pass: %.3f ms" % bpt_baseline)
 
@@ -86,15 +86,21 @@ class TestConvSpeed(unittest.TestCase):
             if i == 0:
                 pr = start_profile()
             else:
-                fpt += (et1 - et0)
-                bpt += (et2 - et1)
+                fpt += et1 - et0
+                bpt += et2 - et1
 
-        stop_profile(pr, sort='time')
-        fpt = (fpt * 1000 / cnt)
-        bpt = (bpt * 1000 / cnt)
-        print("forward pass:  %.3f ms, %.2fx off baseline %.3f ms" % (fpt, fpt / fpt_baseline, fpt_baseline))
-        print("backward pass: %.3f ms, %.2fx off baseline %.3f ms" % (bpt, bpt / bpt_baseline, bpt_baseline))
+        stop_profile(pr, sort="time")
+        fpt = fpt * 1000 / cnt
+        bpt = bpt * 1000 / cnt
+        print(
+            "forward pass:  %.3f ms, %.2fx off baseline %.3f ms"
+            % (fpt, fpt / fpt_baseline, fpt_baseline)
+        )
+        print(
+            "backward pass: %.3f ms, %.2fx off baseline %.3f ms"
+            % (bpt, bpt / bpt_baseline, bpt_baseline)
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

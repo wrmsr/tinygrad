@@ -11,14 +11,18 @@ from examples.yolov3 import Darknet, infer, show_labels
 from extra.utils import fetch
 
 
-chicken_img = cv2.imread(str(Path(__file__).parent / 'efficientnet/Chicken.jpg'))
-car_img = cv2.imread(str(Path(__file__).parent / 'efficientnet/car.jpg'))
+chicken_img = cv2.imread(str(Path(__file__).parent / "efficientnet/Chicken.jpg"))
+car_img = cv2.imread(str(Path(__file__).parent / "efficientnet/car.jpg"))
 
 
 class TestYOLO(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.model = Darknet(fetch("https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3.cfg"))
+        cls.model = Darknet(
+            fetch(
+                "https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3.cfg"
+            )
+        )
         print("Loading weights file (237MB). This might take a while…")
         cls.model.load_weights("https://pjreddie.com/media/files/yolov3.weights")
 
@@ -35,5 +39,5 @@ class TestYOLO(unittest.TestCase):
         self.assertEqual(labels, ["car"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

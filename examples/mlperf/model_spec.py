@@ -7,12 +7,15 @@ def test_model(model, *inputs):
     GlobalCounters.reset()
     model(*inputs).numpy()
     # TODO: return event future to still get the time_sum_s without DEBUG=2
-    print(f"{GlobalCounters.global_ops * 1e-9:.2f} GOPS, {GlobalCounters.time_sum_s * 1000:.2f} ms")
+    print(
+        f"{GlobalCounters.global_ops * 1e-9:.2f} GOPS, {GlobalCounters.time_sum_s * 1000:.2f} ms"
+    )
 
 
 def spec_resnet():
     # Resnet50-v1.5
     from models.resnet import ResNet50
+
     mdl = ResNet50()
     img = Tensor.randn(1, 3, 224, 224)
     test_model(mdl, img)
@@ -26,6 +29,7 @@ def spec_retinanet():
 def spec_unet3d():
     # 3D UNET
     from models.unet3d import UNet3D
+
     mdl = UNet3D()
     img = Tensor.randn(1, 1, 5, 224, 224)
     test_model(mdl, img)
@@ -33,6 +37,7 @@ def spec_unet3d():
 
 def spec_rnnt():
     from models.rnnt import RNNT
+
     mdl = RNNT()
     mdl.load_from_pretrained()
     x = Tensor.randn(220, 1, 240)

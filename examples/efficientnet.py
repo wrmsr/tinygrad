@@ -35,11 +35,13 @@ def _infer(model, img):
 def infer(model, img):
     # preprocess image
     aspect_ratio = img.size[0] / img.size[1]
-    img = img.resize((int(224 * max(aspect_ratio, 1.0)), int(224 * max(1.0 / aspect_ratio, 1.0))))
+    img = img.resize(
+        (int(224 * max(aspect_ratio, 1.0)), int(224 * max(1.0 / aspect_ratio, 1.0)))
+    )
 
     img = np.array(img)
     y0, x0 = (np.asarray(img.shape)[:2] - 224) // 2
-    retimg = img = img[y0:y0 + 224, x0:x0 + 224]
+    retimg = img = img[y0 : y0 + 224, x0 : x0 + 224]
 
     # if you want to look at the image
     """
@@ -67,13 +69,17 @@ if __name__ == "__main__":
 
     # category labels
     lbls = fetch(
-        "https://gist.githubusercontent.com/yrevar/942d3a0ac09ec9e5eb3a/raw/238f720ff059c1f82f368259d1ca4ffa5dd8f9f5/imagenet1000_clsidx_to_labels.txt")
-    lbls = ast.literal_eval(lbls.decode('utf-8'))
+        "https://gist.githubusercontent.com/yrevar/942d3a0ac09ec9e5eb3a/raw/238f720ff059c1f82f368259d1ca4ffa5dd8f9f5/imagenet1000_clsidx_to_labels.txt"
+    )
+    lbls = ast.literal_eval(lbls.decode("utf-8"))
 
     # load image and preprocess
-    url = sys.argv[1] if len(
-        sys.argv) >= 2 else "https://raw.githubusercontent.com/geohot/tinygrad/master/docs/stable_diffusion_by_tinygrad.jpg"
-    if url == 'webcam':
+    url = (
+        sys.argv[1]
+        if len(sys.argv) >= 2
+        else "https://raw.githubusercontent.com/geohot/tinygrad/master/docs/stable_diffusion_by_tinygrad.jpg"
+    )
+    if url == "webcam":
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         while 1:
@@ -82,17 +88,22 @@ if __name__ == "__main__":
             img = Image.fromarray(frame[:, :, [2, 1, 0]])
             lt = time.monotonic_ns()
             out, retimg = infer(model, img)
-            print(f"{(time.monotonic_ns() - lt) * 1e-6:7.2f} ms", np.argmax(out), np.max(out), lbls[np.argmax(out)])
+            print(
+                f"{(time.monotonic_ns() - lt) * 1e-6:7.2f} ms",
+                np.argmax(out),
+                np.max(out),
+                lbls[np.argmax(out)],
+            )
             SCALE = 3
             simg = cv2.resize(retimg, (224 * SCALE, 224 * SCALE))
             retimg = cv2.cvtColor(simg, cv2.COLOR_RGB2BGR)
-            cv2.imshow('capture', retimg)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            cv2.imshow("capture", retimg)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
         cap.release()
         cv2.destroyAllWindows()
     else:
-        if url.startswith('http'):
+        if url.startswith("http"):
             img = Image.open(io.BytesIO(fetch(url)))
         else:
             img = Image.open(url)

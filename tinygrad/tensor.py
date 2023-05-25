@@ -3,7 +3,18 @@ from __future__ import annotations
 import math, functools, itertools
 import numpy as np
 from typing import List, Tuple, Callable, Optional, ClassVar, Type, Union, Sequence
-from tinygrad.helpers import prod, argfix, make_pair, getenv, IMAGE, DEBUG, flatten, DType, dtypes, LazyNumpyArray
+from tinygrad.helpers import (
+    prod,
+    argfix,
+    make_pair,
+    getenv,
+    IMAGE,
+    DEBUG,
+    flatten,
+    DType,
+    dtypes,
+    LazyNumpyArray,
+)
 from tinygrad.lazy import Device, LazyBuffer
 
 
@@ -12,8 +23,11 @@ class Function:
     def __init__(self, device: str, *tensors: Tensor):
         self.device, self.parents = device, tensors
         self.needs_input_grad = [t.requires_grad for t in self.parents]
-        self.requires_grad = True if any(self.needs_input_grad) else (
-            None if any(x is None for x in self.needs_input_grad) else False)
+        self.requires_grad = (
+            True
+            if any(self.needs_input_grad)
+            else (None if any(x is None for x in self.needs_input_grad) else False)
+        )
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError(f"forward not implemented for {type(self)}")
@@ -24,8 +38,11 @@ class Function:
     @classmethod
     def apply(fxn: Type[Function], *x: Tensor, **kwargs) -> Tensor:
         ctx = fxn(x[0].device, *x)
-        ret = Tensor(ctx.forward(*[t.lazydata for t in x], **kwargs), device=ctx.device,
-                     requires_grad=ctx.requires_grad)
+        ret = Tensor(
+            ctx.forward(*[t.lazydata for t in x], **kwargs),
+            device=ctx.device,
+            requires_grad=ctx.requires_grad,
+        )
         if ctx.requires_grad and not Tensor.no_grad:
             ret._ctx = ctx  # used by autograd engine
         return ret
@@ -36,17 +53,25 @@ import tinygrad.mlops as mlops
 
 # **** start with two base classes, Tensor and Function ****
 
+
 class Tensor:
-    __deletable__ = ('_ctx',)
+    __deletable__ = ("_ctx",)
     training: ClassVar[bool] = False
     no_grad: ClassVar[bool] = False
     default_type: ClassVar[DType] = dtypes.float32
 
-    def __init__(self, data: Union[list, LazyBuffer, LazyNumpyArray, np.ndarray], device=Device.DEFAULT,
-                 dtype: Optional[DType] = None, requires_grad: Optional[bool] = None):
+    def __init__(
+        self,
+        data: Union[list, LazyBuffer, LazyNumpyArray, np.ndarray],
+        device=Device.DEFAULT,
+        dtype: Optional[DType] = None,
+        requires_grad: Optional[bool] = None,
+    ):
         device = device.upper().replace(":0", "")  # canonicalize device
         if isinstance(data, list):
-            data = np.array(data, dtype=(dtype if dtype is not None else Tensor.default_type).np)
+            data = np.array(
+                data, dtype=(dtype if dtype is not None else Tensor.default_type).np
+            )
         elif isinstance(data, LazyBuffer) and data.device != device:
             # TODO: this has to realize, it shouldn't have to
             data = data.realize().toCPU()
@@ -59,9 +84,13 @@ class Tensor:
         # TODO: it should all be LazyBuffer I think
         if isinstance(data, LazyNumpyArray):
             data = data if data.shape else data.reshape((1,))
-            lazydata = LazyBuffer.fromCPU(data.astype(dtype.np) if dtype is not None else data, device)
+            lazydata = LazyBuffer.fromCPU(
+                data.astype(dtype.np) if dtype is not None else data, device
+            )
         elif isinstance(data, LazyBuffer):
-            assert dtype is None or dtype == data.dtype, "dtype doesn't match, and casting isn't supported"
+            assert (
+                dtype is None or dtype == data.dtype
+            ), "dtype doesn't match, and casting isn't supported"
             lazydata = data
         else:
             raise RuntimeError(f"can't create Tensor from {data}")
@@ -139,11 +168,15 @@ class Tensor:
 
     @staticmethod
     def zeros(*shape, **kwargs):
-        return Tensor([0], **kwargs).reshape([1] * len(shape)).expand(shape).contiguous()
+        return (
+            Tensor([0], **kwargs).reshape([1] * len(shape)).expand(shape).contiguous()
+        )
 
     @staticmethod
     def ones(*shape, **kwargs):
-        return Tensor([1], **kwargs).reshape([1] * len(shape)).expand(shape).contiguous()
+        return (
+            Tensor([1], **kwargs).reshape([1] * len(shape)).expand(shape).contiguous()
+        )
 
     @staticmethod
     def zeros_like(tensor, **kwargs):
@@ -155,14 +188,23 @@ class Tensor:
 
     @staticmethod
     def eye(dim, **kwargs):
-        return Tensor([1], **kwargs).slice(((0, dim + 1),)).reshape(1, dim + 1).expand(dim, dim + 1).reshape(
-            dim * (dim + 1)).slice(((0, dim * dim),)).reshape(dim, dim)
+        return (
+            Tensor([1], **kwargs)
+            .slice(((0, dim + 1),))
+            .reshape(1, dim + 1)
+            .expand(dim, dim + 1)
+            .reshape(dim * (dim + 1))
+            .slice(((0, dim * dim),))
+            .reshape(dim, dim)
+        )
 
     # TODO: below line, remove use of numpy here and make lazy
     # TODO: requires cumsum to remove numpy
     @staticmethod
     def arange(stop, start=0, step=1, **kwargs):
-        return Tensor(np.arange(start=start, stop=stop, step=step, dtype=np.float32), **kwargs)
+        return Tensor(
+            np.arange(start=start, stop=stop, step=step, dtype=np.float32), **kwargs
+        )
 
     # ***** (numpy) rng helper functions *****
     # TODO: move randomness generation out of numpy
@@ -176,15 +218,27 @@ class Tensor:
     @staticmethod
     def rand(*shape, **kwargs) -> Tensor:
         return Tensor(
-            LazyNumpyArray(lambda lna: Tensor._rng.random(size=lna.shape, dtype=lna.dtype), shape, np.float32),
-            **kwargs)
+            LazyNumpyArray(
+                lambda lna: Tensor._rng.random(size=lna.shape, dtype=lna.dtype),
+                shape,
+                np.float32,
+            ),
+            **kwargs,
+        )
 
     # TODO: replace with a transformation from uniform -> gaussian
     @staticmethod
     def randn(*shape, **kwargs) -> Tensor:
         return Tensor(
-            LazyNumpyArray(lambda lna: Tensor._rng.standard_normal(size=lna.shape, dtype=lna.dtype), shape, np.float32),
-            **kwargs)
+            LazyNumpyArray(
+                lambda lna: Tensor._rng.standard_normal(
+                    size=lna.shape, dtype=lna.dtype
+                ),
+                shape,
+                np.float32,
+            ),
+            **kwargs,
+        )
 
     # ***** rng hlops *****
 
@@ -199,7 +253,9 @@ class Tensor:
     # https://www.tensorflow.org/api_docs/python/tf/keras/initializers/GlorotUniform
     @staticmethod
     def glorot_uniform(*shape, **kwargs) -> Tensor:
-        return Tensor.uniform(*shape, **kwargs).mul((6 / (shape[0] + prod(shape[1:]))) ** 0.5)
+        return Tensor.uniform(*shape, **kwargs).mul(
+            (6 / (shape[0] + prod(shape[1:]))) ** 0.5
+        )
 
     # ***** toposort and backward pass *****
 
@@ -226,13 +282,19 @@ class Tensor:
             if not any(x.requires_grad for x in t0._ctx.parents):
                 del t0._ctx  # TODO: does it help to delete this here ever?
                 continue
-            assert (t0.grad is not None)
+            assert t0.grad is not None
             grads = t0._ctx.backward(t0.grad.lazydata)
-            grads = [Tensor(g, device=self.device, requires_grad=False) if g is not None else None
-                     for g in ([grads] if len(t0._ctx.parents) == 1 else grads)]
+            grads = [
+                Tensor(g, device=self.device, requires_grad=False)
+                if g is not None
+                else None
+                for g in ([grads] if len(t0._ctx.parents) == 1 else grads)
+            ]
             for t, g in zip(t0._ctx.parents, grads):
                 if g is not None and t.requires_grad:
-                    assert g.shape == t.shape, f"grad shape must match tensor shape, {g.shape!r} != {t.shape!r}"
+                    assert (
+                        g.shape == t.shape
+                    ), f"grad shape must match tensor shape, {g.shape!r} != {t.shape!r}"
                     t.grad = g if t.grad is None else (t.grad + g)
             del t0._ctx
 
@@ -240,33 +302,57 @@ class Tensor:
 
     def reshape(self, shape, *args) -> Tensor:
         new_shape = argfix(shape, *args)
-        assert len(new_shape) > 0 and all(x != 0 for x in new_shape), f"zeros not allowed in shape {new_shape}"
-        return mlops.Reshape.apply(self, shape=tuple(
-            -prod(self.shape) // prod(new_shape) if s == -1 else s for s in new_shape))
+        assert len(new_shape) > 0 and all(
+            x != 0 for x in new_shape
+        ), f"zeros not allowed in shape {new_shape}"
+        return mlops.Reshape.apply(
+            self,
+            shape=tuple(
+                -prod(self.shape) // prod(new_shape) if s == -1 else s
+                for s in new_shape
+            ),
+        )
 
     def expand(self, shape, *args) -> Tensor:
-        return mlops.Expand.apply(self,
-                                  shape=tuple(x if x != -1 else s for s, x in zip(self.shape, argfix(shape, *args))))
+        return mlops.Expand.apply(
+            self,
+            shape=tuple(
+                x if x != -1 else s for s, x in zip(self.shape, argfix(shape, *args))
+            ),
+        )
 
     def permute(self, order, *args) -> Tensor:
         return mlops.Permute.apply(self, order=argfix(order, *args))
 
     def flip(self, axis, *args) -> Tensor:
-        return mlops.Flip.apply(self, axis=[x if x >= 0 else x + len(self.shape) for x in argfix(axis, *args)])
+        return mlops.Flip.apply(
+            self,
+            axis=[x if x >= 0 else x + len(self.shape) for x in argfix(axis, *args)],
+        )
 
     def pad(self, arg: Tuple[Tuple[int, int], ...]) -> Tensor:
         return mlops.Pad.apply(self, arg=arg) if any(x != (0, 0) for x in arg) else self
 
     def shrink(self, arg: Tuple[Tuple[int, int], ...]) -> Tensor:
-        return mlops.Shrink.apply(self, arg=arg) if any(x != (0, s) for x, s in zip(arg, self.shape)) else self
+        return (
+            mlops.Shrink.apply(self, arg=arg)
+            if any(x != (0, s) for x, s in zip(arg, self.shape))
+            else self
+        )
 
     # ***** movement hlops *****
 
     # NOTE: using slice is discouraged and things should migrate to pad and shrink
     def slice(self, arg: Sequence[Optional[Tuple[int, int]]]) -> Tensor:
         arg_ = tuple(a if a is not None else (0, s) for s, a in zip(self.shape, arg))
-        padding = tuple((max(0, -p[0]), max(0, p[1] - self.shape[i])) for i, p in enumerate(arg_))
-        return self.pad(padding).shrink(tuple((p[0] + padding[i][0], p[1] + padding[i][0]) for i, p in enumerate(arg_)))
+        padding = tuple(
+            (max(0, -p[0]), max(0, p[1] - self.shape[i])) for i, p in enumerate(arg_)
+        )
+        return self.pad(padding).shrink(
+            tuple(
+                (p[0] + padding[i][0], p[1] + padding[i][0]) for i, p in enumerate(arg_)
+            )
+        )
 
     # Tensors mostly follow the normal python indexing / slicing behavior for sequences
     # - Negative indices are taken relative to the end of the sequence, so X[-2] returns the 2nd-to-last element
@@ -279,38 +365,57 @@ class Tensor:
     # - Strides other than 1 are not allowed
     def __getitem__(self, val):
         def slcfix(i, sz, default):
-            return default if i is None else max(0,
-                                                 min(sz, sz + i if i < 0 else i))  # Fix negative idxs, clamp to [0,N]
+            return (
+                default if i is None else max(0, min(sz, sz + i if i < 0 else i))
+            )  # Fix negative idxs, clamp to [0,N]
 
         new_slice, new_shape = [], []
         val = [val] if not isinstance(val, (list, tuple)) else val
         assert sum(s is not None for s in val) <= len(self.shape)
         assert all(s.step is None or s.step == 1 for s in val if isinstance(s, slice))
         for i, (sz, s) in enumerate(
-            zip(self.shape, [v for v in val if v is not None])):  # Slicing only depends on ints + slices
+            zip(self.shape, [v for v in val if v is not None])
+        ):  # Slicing only depends on ints + slices
             if isinstance(s, int) and not (-sz <= s < sz):
-                raise IndexError(f"index {s} is out of bounds for dimension {i} with size {sz}")
+                raise IndexError(
+                    f"index {s} is out of bounds for dimension {i} with size {sz}"
+                )
             new_slice.append(
-                (s % sz, s % sz + 1) if isinstance(s, int) else (slcfix(s.start, sz, 0), slcfix(s.stop, sz, sz)))
-        for s, sz in zip(val, [self.shape[i - 1] for i in itertools.accumulate(
-            [int(s is not None) for s in val])]):  # Shape depends on slices + positions of Nones
+                (s % sz, s % sz + 1)
+                if isinstance(s, int)
+                else (slcfix(s.start, sz, 0), slcfix(s.stop, sz, sz))
+            )
+        for s, sz in zip(
+            val,
+            [
+                self.shape[i - 1]
+                for i in itertools.accumulate([int(s is not None) for s in val])
+            ],
+        ):  # Shape depends on slices + positions of Nones
             if not isinstance(s, int):
-                new_shape.append(1 if s is None else slcfix(s.stop, sz, sz) - slcfix(s.start, sz, 0))
+                new_shape.append(
+                    1 if s is None else slcfix(s.stop, sz, sz) - slcfix(s.start, sz, 0)
+                )
         new_shape += [self.shape[i] for i in range(len(new_slice), len(self.shape))]
-        new_slice += [(0, self.shape[i]) for i in range(len(new_slice), len(self.shape))]
+        new_slice += [
+            (0, self.shape[i]) for i in range(len(new_slice), len(self.shape))
+        ]
         return self.slice(new_slice).reshape(new_shape if len(new_shape) else (1,))
 
     def cat(self, *args, dim=0):
         dim = (dim + len(self.shape)) if dim < 0 else dim
         for y in args:
             assert len(y.shape) == len(self.shape) and all(
-                y.shape[i] == s for i, s in enumerate(self.shape) if i != dim)
+                y.shape[i] == s for i, s in enumerate(self.shape) if i != dim
+            )
         catargs = [self] + list(args)
         shape_cumsum = [0, *itertools.accumulate([y.shape[dim] for y in catargs])]
         slc = [[(0, s) for s in self.shape] for _ in catargs]
         for s, k in zip(slc, shape_cumsum):
             s[dim] = (-k, shape_cumsum[-1] - k)
-        return functools.reduce(Tensor.__add__, [arg.slice(s) for arg, s in zip(catargs, slc)])
+        return functools.reduce(
+            Tensor.__add__, [arg.slice(s) for arg, s in zip(catargs, slc)]
+        )
 
     @staticmethod
     def stack(tensors, dim=0):
@@ -343,8 +448,11 @@ class Tensor:
 
     # (padding_left, padding_right, padding_top, padding_bottom)
     def pad2d(self, padding: Union[List[int], Tuple[int, ...]]):
-        slc = [(-p0, s + p1) for p0, p1, s in zip(padding[::2], padding[1::2], self.shape[::-1])][::-1]
-        return self.slice([(0, s) for s in self.shape[:-(len(padding) // 2)]] + slc)
+        slc = [
+            (-p0, s + p1)
+            for p0, p1, s in zip(padding[::2], padding[1::2], self.shape[::-1])
+        ][::-1]
+        return self.slice([(0, s) for s in self.shape[: -(len(padding) // 2)]] + slc)
 
     @property
     def T(self) -> Tensor:
@@ -360,12 +468,25 @@ class Tensor:
 
     # ***** reduce ops *****
 
-    def _reduce(self, fxn: Type[Function], axis: Optional[Union[int, Tuple[int, ...]]] = None, keepdim=False):
-        axis_: List[int] = list(range(len(self.shape))) if axis is None else (
-            [axis] if isinstance(axis, int) else list(axis))
+    def _reduce(
+        self,
+        fxn: Type[Function],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdim=False,
+    ):
+        axis_: List[int] = (
+            list(range(len(self.shape)))
+            if axis is None
+            else ([axis] if isinstance(axis, int) else list(axis))
+        )
         axis_ = [x if x >= 0 else x + len(self.shape) for x in axis_]
         shape = [self.shape[i] for i in range(len(self.shape)) if i not in axis_]
-        ret = fxn.apply(self, new_shape=tuple(1 if i in axis_ else self.shape[i] for i in range(len(self.shape))))
+        ret = fxn.apply(
+            self,
+            new_shape=tuple(
+                1 if i in axis_ else self.shape[i] for i in range(len(self.shape))
+            ),
+        )
         return ret if keepdim else ret.reshape(shape=[1] if shape == [] else shape)
 
     def sum(self, axis=None, keepdim=False):
@@ -383,7 +504,9 @@ class Tensor:
 
     # TODO: implement unbiased True option for torch bessel's correction (subtracting 1 from divisor causes 0.01 error)
     def std(self, axis=None, keepdim=False):
-        square_sum = ((self - self.mean(axis=axis, keepdim=True)).square()).sum(axis=axis, keepdim=keepdim)
+        square_sum = ((self - self.mean(axis=axis, keepdim=True)).square()).sum(
+            axis=axis, keepdim=keepdim
+        )
         return (square_sum * (prod(square_sum.shape) / prod(self.shape))).sqrt()
 
     def _softmax(self, axis):
@@ -401,76 +524,139 @@ class Tensor:
 
     # ***** processing ops *****
 
-    def _pool(self, k_: Tuple[int, ...], stride: Union[Tuple[int, ...], int] = 1,
-              dilation: Union[Tuple[int, ...], int] = 1, _insert_dims=tuple()) -> Tensor:
+    def _pool(
+        self,
+        k_: Tuple[int, ...],
+        stride: Union[Tuple[int, ...], int] = 1,
+        dilation: Union[Tuple[int, ...], int] = 1,
+        _insert_dims=tuple(),
+    ) -> Tensor:
         assert len(self.shape) >= len(k_), f"can't pool {self.shape} with {k_}"
         s_, d_ = make_pair(stride, len(k_)), make_pair(dilation, len(k_))
         assert len(k_) == len(s_) and len(k_) == len(
-            d_), f"stride/dilation mismatch kernel:{k_} stride:{s_} dilation:{d_}"
-        slc_prefix, prefix, i_ = [(0, x) for x in self.shape[0:-len(k_)]], self.shape[0:-len(k_)], self.shape[-len(k_):]
+            d_
+        ), f"stride/dilation mismatch kernel:{k_} stride:{s_} dilation:{d_}"
+        slc_prefix, prefix, i_ = (
+            [(0, x) for x in self.shape[0 : -len(k_)]],
+            self.shape[0 : -len(k_)],
+            self.shape[-len(k_) :],
+        )
         if any(k > s for k, s in zip(k_, s_)) or any(d != 1 for d in d_):
             o_ = [(i - d * (k - 1) - 1) // s + 1 for i, d, k, s in zip(i_, d_, k_, s_)]
-            e_ = [math.ceil(k * (i + d) / i) for k, i, d in zip(k_, i_, d_)]  # expands such that we don't need padding
-            xup = self.reshape(*prefix, *([1] * len(_insert_dims)), *flatten((1, i) for i in i_)).expand(*prefix,
-                                                                                                         *_insert_dims,
-                                                                                                         *flatten(
-                                                                                                             (e, i) for
-                                                                                                             e, i in
-                                                                                                             zip(e_,
-                                                                                                                 i_))).reshape(
-                *prefix, *_insert_dims, *[e * i for e, i in zip(e_, i_)])
+            e_ = [
+                math.ceil(k * (i + d) / i) for k, i, d in zip(k_, i_, d_)
+            ]  # expands such that we don't need padding
+            xup = (
+                self.reshape(
+                    *prefix, *([1] * len(_insert_dims)), *flatten((1, i) for i in i_)
+                )
+                .expand(
+                    *prefix, *_insert_dims, *flatten((e, i) for e, i in zip(e_, i_))
+                )
+                .reshape(*prefix, *_insert_dims, *[e * i for e, i in zip(e_, i_)])
+            )
             # NOTE: _insert_dims is required because reduces can't be merged (yet)
             prefix += _insert_dims
             slc_prefix += [(0, x) for x in _insert_dims]
             # slide by dilation
-            xup = xup.slice(slc_prefix + [(0, k * (i + d)) for k, i, d in zip(k_, i_, d_)])
-            xup = xup.reshape(*prefix, *flatten((k, i + d) for k, i, d in zip(k_, i_, d_)))
-            xup = xup.slice(slc_prefix + flatten(((0, k), (0, o * s)) for k, o, s in zip(k_, o_, s_)))
+            xup = xup.slice(
+                slc_prefix + [(0, k * (i + d)) for k, i, d in zip(k_, i_, d_)]
+            )
+            xup = xup.reshape(
+                *prefix, *flatten((k, i + d) for k, i, d in zip(k_, i_, d_))
+            )
+            xup = xup.slice(
+                slc_prefix
+                + flatten(((0, k), (0, o * s)) for k, o, s in zip(k_, o_, s_))
+            )
             # handle stride, and permute to move reduce to the end
-            xup = xup.reshape(*prefix, *flatten((k, o, s) for k, o, s in zip(k_, o_, s_)))
-            xup = xup.slice(slc_prefix + flatten(((0, k), (0, o), (0, 1)) for k, o in zip(k_, o_)))
+            xup = xup.reshape(
+                *prefix, *flatten((k, o, s) for k, o, s in zip(k_, o_, s_))
+            )
+            xup = xup.slice(
+                slc_prefix + flatten(((0, k), (0, o), (0, 1)) for k, o in zip(k_, o_))
+            )
             xup = xup.reshape(*prefix, *flatten((k, o) for k, o in zip(k_, o_)))
-            return xup.permute(*range(len(prefix)), *[len(prefix) + i * 2 + 1 for i in range(len(k_))],
-                               *[len(prefix) + i * 2 for i in range(len(k_))])
+            return xup.permute(
+                *range(len(prefix)),
+                *[len(prefix) + i * 2 + 1 for i in range(len(k_))],
+                *[len(prefix) + i * 2 for i in range(len(k_))],
+            )
         else:
             # TODO: once the shapetracker can optimize well, remove this alternative implementation. or not if the CPU implementation doesn't use ShapeTracker
             o_ = [(i + (s - k)) // s for i, s, k in zip(i_, s_, k_)]
             xup = self.slice(slc_prefix + [(0, o * s) for o, s in zip(o_, s_)])
-            xup = xup.reshape(*prefix, *([1] * len(_insert_dims)), *flatten(((o, s) for o, s in zip(o_, s_))))
+            xup = xup.reshape(
+                *prefix,
+                *([1] * len(_insert_dims)),
+                *flatten(((o, s) for o, s in zip(o_, s_))),
+            )
             if len(_insert_dims):
-                xup = xup.expand(*prefix, *_insert_dims, *flatten(((o, s) for o, s in zip(o_, s_))))
+                xup = xup.expand(
+                    *prefix, *_insert_dims, *flatten(((o, s) for o, s in zip(o_, s_)))
+                )
                 prefix += _insert_dims
                 slc_prefix += [(0, x) for x in _insert_dims]
-            xup = xup.slice(slc_prefix + flatten(((0, o), (0, k)) for o, k in zip(o_, k_)))
-            return xup.permute(*range(len(prefix)), *[len(prefix) + i * 2 for i in range(len(k_))],
-                               *[len(prefix) + i * 2 + 1 for i in range(len(k_))])
+            xup = xup.slice(
+                slc_prefix + flatten(((0, o), (0, k)) for o, k in zip(o_, k_))
+            )
+            return xup.permute(
+                *range(len(prefix)),
+                *[len(prefix) + i * 2 for i in range(len(k_))],
+                *[len(prefix) + i * 2 + 1 for i in range(len(k_))],
+            )
 
     # NOTE: these work for more than 2D
     def avg_pool2d(self, kernel_size=(2, 2), stride=None):
-        return self._pool(make_pair(kernel_size), stride if stride is not None else kernel_size).mean(
-            axis=tuple(range(0 - len(make_pair(kernel_size)), 0)))
+        return self._pool(
+            make_pair(kernel_size), stride if stride is not None else kernel_size
+        ).mean(axis=tuple(range(0 - len(make_pair(kernel_size)), 0)))
 
     def max_pool2d(self, kernel_size=(2, 2), stride=None):
-        return self._pool(make_pair(kernel_size), stride if stride is not None else kernel_size).max(
-            axis=tuple(range(0 - len(make_pair(kernel_size)), 0)))
+        return self._pool(
+            make_pair(kernel_size), stride if stride is not None else kernel_size
+        ).max(axis=tuple(range(0 - len(make_pair(kernel_size)), 0)))
 
-    def conv2d(self, weight: Tensor, bias: Optional[Tensor] = None, groups=1, stride=1, dilation=1,
-               padding=0) -> Tensor:
+    def conv2d(
+        self,
+        weight: Tensor,
+        bias: Optional[Tensor] = None,
+        groups=1,
+        stride=1,
+        dilation=1,
+        padding=0,
+    ) -> Tensor:
         (bs, cin_), (cout, cin), HW = self.shape[:2], weight.shape[:2], weight.shape[2:]
         assert groups * cin == cin_ and len(self.shape) == len(
-            weight.shape), f"Input Tensor shape {self.shape} does not match the shape of the weights {weight.shape}. ({groups * cin} vs. {cin_})"
-        padding_ = [padding] * 4 if isinstance(padding, int) else (
-            padding if len(padding) >= 4 else [padding[1], padding[1], padding[0], padding[0]])
+            weight.shape
+        ), f"Input Tensor shape {self.shape} does not match the shape of the weights {weight.shape}. ({groups * cin} vs. {cin_})"
+        padding_ = (
+            [padding] * 4
+            if isinstance(padding, int)
+            else (
+                padding
+                if len(padding) >= 4
+                else [padding[1], padding[1], padding[0], padding[0]]
+            )
+        )
 
         # conv2d is a pooling op (with padding)
-        x = self.pad2d(padding_)._pool(HW, stride, dilation)  # (bs, groups*cin, oy, ox, H, W)
-        rcout, oyx = cout // groups, x.shape[2:-len(HW)]
-        x = x.reshape(bs, groups, cin, 1, *oyx, *HW).expand(bs, groups, cin, rcout, *oyx, *HW).permute(0, 1, 3,
-                                                                                                       *[4 + i for i in
-                                                                                                         range(
-                                                                                                             len(oyx))],
-                                                                                                       2, *[
-                4 + len(oyx) + i for i in range(len(HW))])
+        x = self.pad2d(padding_)._pool(
+            HW, stride, dilation
+        )  # (bs, groups*cin, oy, ox, H, W)
+        rcout, oyx = cout // groups, x.shape[2 : -len(HW)]
+        x = (
+            x.reshape(bs, groups, cin, 1, *oyx, *HW)
+            .expand(bs, groups, cin, rcout, *oyx, *HW)
+            .permute(
+                0,
+                1,
+                3,
+                *[4 + i for i in range(len(oyx))],
+                2,
+                *[4 + len(oyx) + i for i in range(len(HW))],
+            )
+        )
 
         # expand the channels with the pool
         # TODO: this reduces the number of kernels, but it's slower!
@@ -479,9 +665,21 @@ class Tensor:
         # x = x.reshape(bs, groups, cin, rcout, oy, ox, H, W).permute(0,1,3,4,5,2,6,7)
 
         # conv! broadcasted to (bs, groups, rcout, *oyx, cin, *HW)
-        ret = (x * weight.reshape(1, groups, rcout, *[1 for _ in range(len(oyx))], cin, *HW)).sum(
-            [-1 - i for i in range(1 + len(oyx))], keepdim=True).reshape(bs, cout, *oyx)
-        return ret if bias is None else ret.add(bias.reshape(1, -1, *[1 for _ in range(len(HW))]))
+        ret = (
+            (
+                x
+                * weight.reshape(
+                    1, groups, rcout, *[1 for _ in range(len(oyx))], cin, *HW
+                )
+            )
+            .sum([-1 - i for i in range(1 + len(oyx))], keepdim=True)
+            .reshape(bs, cout, *oyx)
+        )
+        return (
+            ret
+            if bias is None
+            else ret.add(bias.reshape(1, -1, *[1 for _ in range(len(HW))]))
+        )
 
     def dot(self, w: Tensor) -> Tensor:
         x = self.reshape(*self.shape[0:-1], 1, self.shape[-1])
@@ -567,7 +765,11 @@ class Tensor:
         return self.clip(min_val, max_val)
 
     def gelu(self):
-        return 0.5 * self * (1 + (self * 0.7978845608 * (1 + 0.044715 * self * self)).tanh())
+        return (
+            0.5
+            * self
+            * (1 + (self * 0.7978845608 * (1 + 0.044715 * self * self)).tanh())
+        )
 
     def quick_gelu(self):
         return self * (self * 1.702).sigmoid()
@@ -586,27 +788,58 @@ class Tensor:
 
     # ***** broadcasted binary mlops *****
 
-    def _broadcasted(self, fxn: Type[Function], other: Union[Tensor, float], reverse: bool = False) -> Tensor:
-        x, y = [Tensor([t], device=self.device, requires_grad=False) if not isinstance(t, Tensor) else t for t in
-                ([other, self] if reverse else [self, other])]
-        x, y = [t.reshape([1] * (max(len(x.shape), len(y.shape)) - len(t.shape)) + list(t.shape)) for t in [x, y]]
+    def _broadcasted(
+        self, fxn: Type[Function], other: Union[Tensor, float], reverse: bool = False
+    ) -> Tensor:
+        x, y = [
+            Tensor([t], device=self.device, requires_grad=False)
+            if not isinstance(t, Tensor)
+            else t
+            for t in ([other, self] if reverse else [self, other])
+        ]
+        x, y = [
+            t.reshape(
+                [1] * (max(len(x.shape), len(y.shape)) - len(t.shape)) + list(t.shape)
+            )
+            for t in [x, y]
+        ]
         shape_ret = tuple(max(sx, sy) for sx, sy in zip(x.shape, y.shape))
         return fxn.apply(x.expand(shape_ret), y.expand(shape_ret))
 
     def add(self, x: Union[Tensor, float], reverse=False) -> Tensor:
-        return self._broadcasted(mlops.Add, x, reverse) if isinstance(x, Tensor) or x != 0.0 else self
+        return (
+            self._broadcasted(mlops.Add, x, reverse)
+            if isinstance(x, Tensor) or x != 0.0
+            else self
+        )
 
     def sub(self, x: Union[Tensor, float], reverse=False) -> Tensor:
-        return self._broadcasted(mlops.Sub, x, reverse) if isinstance(x, Tensor) or x != 0.0 or reverse else self
+        return (
+            self._broadcasted(mlops.Sub, x, reverse)
+            if isinstance(x, Tensor) or x != 0.0 or reverse
+            else self
+        )
 
     def mul(self, x: Union[Tensor, float], reverse=False) -> Tensor:
-        return self._broadcasted(mlops.Mul, x, reverse) if isinstance(x, Tensor) or x != 1.0 else self
+        return (
+            self._broadcasted(mlops.Mul, x, reverse)
+            if isinstance(x, Tensor) or x != 1.0
+            else self
+        )
 
     def pow(self, x: Union[Tensor, float], reverse=False) -> Tensor:
-        return self._broadcasted(mlops.Pow, x, reverse) if isinstance(x, Tensor) or x != 1.0 or reverse else self
+        return (
+            self._broadcasted(mlops.Pow, x, reverse)
+            if isinstance(x, Tensor) or x != 1.0 or reverse
+            else self
+        )
 
     def div(self, x: Union[Tensor, float], reverse=False) -> Tensor:
-        return self._broadcasted(mlops.Div, x, reverse) if isinstance(x, Tensor) or reverse else self.mul(1 / x)
+        return (
+            self._broadcasted(mlops.Div, x, reverse)
+            if isinstance(x, Tensor) or reverse
+            else self.mul(1 / x)
+        )
 
     def matmul(self, x: Tensor, reverse=False) -> Tensor:
         return x.dot(self) if reverse else self.dot(x)
@@ -702,22 +935,36 @@ class Tensor:
         return functools.reduce(lambda x, f: f(x), ll, self)
 
     def layernorm(self, axis=-1, eps: float = 1e-5) -> Tensor:
-        y = (self - self.mean(axis, keepdim=True))
+        y = self - self.mean(axis, keepdim=True)
         return y.mul((y * y).mean(axis, keepdim=True).add(eps).rsqrt())
 
-    def batchnorm(self, weight: Optional[Tensor], bias: Optional[Tensor], mean: Tensor, invstd: Tensor) -> Tensor:
-        x = (self - mean.reshape(shape=[1, -1, 1, 1]))
+    def batchnorm(
+        self,
+        weight: Optional[Tensor],
+        bias: Optional[Tensor],
+        mean: Tensor,
+        invstd: Tensor,
+    ) -> Tensor:
+        x = self - mean.reshape(shape=[1, -1, 1, 1])
         if weight:
             x = x * weight.reshape(shape=[1, -1, 1, 1])
-        ret = x.mul(invstd.reshape(shape=[1, -1, 1, 1]) if len(invstd.shape) == 1 else invstd)
+        ret = x.mul(
+            invstd.reshape(shape=[1, -1, 1, 1]) if len(invstd.shape) == 1 else invstd
+        )
         return (ret + bias.reshape(shape=[1, -1, 1, 1])) if bias else ret
 
     def dropout(self, p=0.5) -> Tensor:
         if not Tensor.training:
             return self
         # TODO: why is this going through numpy?
-        _mask: np.ndarray = np.asarray(Tensor._rng.binomial(1, 1.0 - p, size=self.shape), dtype=np.float32)
-        return self * Tensor(_mask, requires_grad=False, device=self.device) * (1 / (1.0 - p))
+        _mask: np.ndarray = np.asarray(
+            Tensor._rng.binomial(1, 1.0 - p, size=self.shape), dtype=np.float32
+        )
+        return (
+            self
+            * Tensor(_mask, requires_grad=False, device=self.device)
+            * (1 / (1.0 - p))
+        )
 
     # ***** cast ops *****
 

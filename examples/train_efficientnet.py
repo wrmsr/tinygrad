@@ -48,13 +48,13 @@ if __name__ == "__main__":
     print(f"training with batch size {BS} for {steps} steps")
 
     if IMAGENET:
+
         def loader(q):
             while 1:
                 try:
                     q.put(fetch_batch(BS))
                 except Exception:
                     traceback.print_exc()
-
 
         q = Queue(16)
         for i in range(2):
@@ -98,9 +98,17 @@ if __name__ == "__main__":
         finish_time = (time.time() - st) * 1000.0
 
         # printing
-        t.set_description("loss %.2f accuracy %.2f -- %.2f + %.2f + %.2f + %.2f = %.2f" %
-                          (loss, accuracy,
-                           fp_time, bp_time, opt_time, finish_time,
-                           fp_time + bp_time + opt_time + finish_time))
+        t.set_description(
+            "loss %.2f accuracy %.2f -- %.2f + %.2f + %.2f + %.2f = %.2f"
+            % (
+                loss,
+                accuracy,
+                fp_time,
+                bp_time,
+                opt_time,
+                finish_time,
+                fp_time + bp_time + opt_time + finish_time,
+            )
+        )
 
         del out, y, loss

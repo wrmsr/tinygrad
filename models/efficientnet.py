@@ -6,8 +6,17 @@ from extra.utils import fetch, fake_torch_load, get_child
 
 
 class MBConvBlock:
-    def __init__(self, kernel_size, strides, expand_ratio, input_filters, output_filters, se_ratio, has_se,
-                 track_running_stats=True):
+    def __init__(
+        self,
+        kernel_size,
+        strides,
+        expand_ratio,
+        input_filters,
+        output_filters,
+        se_ratio,
+        has_se,
+        track_running_stats=True,
+    ):
         oup = expand_ratio * input_filters
         if expand_ratio != 1:
             self._expand_conv = Tensor.glorot_uniform(oup, input_filters, 1, 1)
@@ -39,12 +48,19 @@ class MBConvBlock:
         x = inputs
         if self._expand_conv:
             x = self._bn0(x.conv2d(self._expand_conv)).swish()
-        x = x.conv2d(self._depthwise_conv, padding=self.pad, stride=self.strides, groups=self._depthwise_conv.shape[0])
+        x = x.conv2d(
+            self._depthwise_conv,
+            padding=self.pad,
+            stride=self.strides,
+            groups=self._depthwise_conv.shape[0],
+        )
         x = self._bn1(x).swish()
 
         if self.has_se:
             x_squeezed = x.avg_pool2d(kernel_size=x.shape[2:4])
-            x_squeezed = x_squeezed.conv2d(self._se_reduce, self._se_reduce_bias).swish()
+            x_squeezed = x_squeezed.conv2d(
+                self._se_reduce, self._se_reduce_bias
+            ).swish()
             x_squeezed = x_squeezed.conv2d(self._se_expand, self._se_expand_bias)
             x = x.mul(x_squeezed.sigmoid())
 
@@ -55,8 +71,15 @@ class MBConvBlock:
 
 
 class EfficientNet:
-    def __init__(self, number=0, classes=1000, has_se=True, track_running_stats=True, input_channels=3,
-                 has_fc_output=True):
+    def __init__(
+        self,
+        number=0,
+        classes=1000,
+        has_se=True,
+        track_running_stats=True,
+        input_channels=3,
+        has_fc_output=True,
+    ):
         self.number = number
         global_params = [
             # width, depth
@@ -110,13 +133,31 @@ class EfficientNet:
             ]
 
         self._blocks = []
-        for num_repeats, kernel_size, strides, expand_ratio, input_filters, output_filters, se_ratio in blocks_args:
-            input_filters, output_filters = round_filters(input_filters), round_filters(output_filters)
+        for (
+            num_repeats,
+            kernel_size,
+            strides,
+            expand_ratio,
+            input_filters,
+            output_filters,
+            se_ratio,
+        ) in blocks_args:
+            input_filters, output_filters = round_filters(input_filters), round_filters(
+                output_filters
+            )
             for n in range(round_repeats(num_repeats)):
                 self._blocks.append(
-                    MBConvBlock(kernel_size, strides, expand_ratio, input_filters, output_filters, se_ratio,
-                                has_se=has_se,
-                                track_running_stats=track_running_stats))
+                    MBConvBlock(
+                        kernel_size,
+                        strides,
+                        expand_ratio,
+                        input_filters,
+                        output_filters,
+                        se_ratio,
+                        has_se=has_se,
+                        track_running_stats=track_running_stats,
+                    )
+                )
                 input_filters = output_filters
                 strides = (1, 1)
 
@@ -147,24 +188,31 @@ class EfficientNet:
             4: "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b4-6ed6700e.pth",
             5: "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b5-b6417697.pth",
             6: "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b6-c76e70fd.pth",
-            7: "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b7-dcc49843.pth"
+            7: "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b7-dcc49843.pth",
         }
 
         b0 = fake_torch_load(fetch(model_urls[self.number]))
         for k, v in b0.items():
             if k.endswith("num_batches_tracked"):
                 continue
-            for cat in ['_conv_head', '_conv_stem', '_depthwise_conv', '_expand_conv', '_fc', '_project_conv',
-                        '_se_reduce',
-                        '_se_expand']:
+            for cat in [
+                "_conv_head",
+                "_conv_stem",
+                "_depthwise_conv",
+                "_expand_conv",
+                "_fc",
+                "_project_conv",
+                "_se_reduce",
+                "_se_expand",
+            ]:
                 if cat in k:
-                    k = k.replace('.bias', '_bias')
-                    k = k.replace('.weight', '')
+                    k = k.replace(".bias", "_bias")
+                    k = k.replace(".weight", "")
 
             # print(k, v.shape)
             mv = get_child(self, k)
             vnp = v  # .astype(np.float32)
-            vnp = vnp if k != '_fc' else vnp.transpose()
+            vnp = vnp if k != "_fc" else vnp.transpose()
             # vnp = vnp if vnp.shape != () else np.array([vnp])
 
             if mv.shape == vnp.shape:

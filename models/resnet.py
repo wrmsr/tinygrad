@@ -7,15 +7,25 @@ class BasicBlock:
     expansion = 1
 
     def __init__(self, in_planes, planes, stride=1):
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, stride=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, padding=1, stride=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
         self.downsample = []
         if stride != 1 or in_planes != self.expansion * planes:
             self.downsample = [
-                nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion * planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             ]
 
     def __call__(self, x):
@@ -33,15 +43,25 @@ class Bottleneck:
     def __init__(self, in_planes, planes, stride=1):
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, padding=1, stride=stride, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, self.expansion * planes, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv2d(
+            planes, self.expansion * planes, kernel_size=1, bias=False
+        )
         self.bn3 = nn.BatchNorm2d(self.expansion * planes)
         self.downsample = []
         if stride != 1 or in_planes != self.expansion * planes:
             self.downsample = [
-                nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion * planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             ]
 
     def __call__(self, x):
@@ -62,7 +82,7 @@ class ResNet:
             34: BasicBlock,
             50: Bottleneck,
             101: Bottleneck,
-            152: Bottleneck
+            152: Bottleneck,
         }[num]
 
         self.num_blocks = {
@@ -70,7 +90,7 @@ class ResNet:
             34: [3, 4, 6, 3],
             50: [3, 4, 6, 3],
             101: [3, 4, 23, 3],
-            152: [3, 8, 36, 3]
+            152: [3, 8, 36, 3],
         }[num]
 
         self.in_planes = 64
@@ -109,22 +129,23 @@ class ResNet:
         # TODO replace with fake torch load
 
         model_urls = {
-            18: 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-            34: 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-            50: 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-            101: 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-            152: 'https://download.pytorch.org/models/resnet152-b121ed2d.pth'
+            18: "https://download.pytorch.org/models/resnet18-5c106cde.pth",
+            34: "https://download.pytorch.org/models/resnet34-333f7ec4.pth",
+            50: "https://download.pytorch.org/models/resnet50-19c8e357.pth",
+            101: "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth",
+            152: "https://download.pytorch.org/models/resnet152-b121ed2d.pth",
         }
 
         self.url = model_urls[self.num]
 
         from torch.hub import load_state_dict_from_url
+
         state_dict = load_state_dict_from_url(self.url, progress=True)
         for k, v in state_dict.items():
             obj = get_child(self, k)
             dat = v.detach().numpy()
 
-            if 'fc.' in k and obj.shape != dat.shape:
+            if "fc." in k and obj.shape != dat.shape:
                 print("skipping fully connected layer")
                 continue  # Skip FC if transfer learning
 

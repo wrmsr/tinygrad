@@ -9,7 +9,7 @@ from tinygrad.runtime.ops_gpu import CL
 
 
 # TODO: support multidevice in cuda
-device = 'gpu'
+device = "gpu"
 
 if __name__ == "__main__":
     sz = 1024 * 1024 * 256  # 1 GB
@@ -20,18 +20,18 @@ if __name__ == "__main__":
         c1 = (Tensor.ones(sz, device="cpu") / 2).realize()
 
     with Timing("CPU -> 0: ", on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
-        a0 = c0.to(f'{device}:0').realize()
+        a0 = c0.to(f"{device}:0").realize()
         CL.synchronize()
     with Timing("CPU -> 1: ", on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
-        b1 = c1.to(f'{device}:1').realize()
+        b1 = c1.to(f"{device}:1").realize()
         CL.synchronize()
 
     # cross copy. this is going through the CPU
     with Timing("0 -> CPU -> 1: ", on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
-        a1 = a0.to(f'{device}:1').realize()
+        a1 = a0.to(f"{device}:1").realize()
         CL.synchronize()
     with Timing("1 -> CPU -> 0: ", on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
-        b0 = b1.to(f'{device}:0').realize()
+        b0 = b1.to(f"{device}:0").realize()
         CL.synchronize()
 
     # sum
@@ -45,11 +45,17 @@ if __name__ == "__main__":
     # cross device sum (does this work?)
     # is this making a copy first? is that copy through the CPU?
     # the slowness comes from the *blocking* clprg call, is this pyopencl?
-    with Timing(colored("0+1 -> 0 (sum): ", "red"), on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
+    with Timing(
+        colored("0+1 -> 0 (sum): ", "red"),
+        on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec",
+    ):
         abx0 = (a0 + b1).realize()
         CL.synchronize()
 
-    with Timing(colored("1+0 -> 1 (sum): ", "red"), on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec"):
+    with Timing(
+        colored("1+0 -> 1 (sum): ", "red"),
+        on_exit=lambda x: f", {(sz * 4) / x:.2f} GB/sec",
+    ):
         abx1 = (b1 + a0).realize()
         CL.synchronize()
 

@@ -48,7 +48,9 @@ def make_batch(images):
 
 def make_labels(bs, val):
     y = np.zeros((bs, 2), np.float32)
-    y[range(bs), [val] * bs] = -2.0  # Can we do label smoothin? i.e -2.0 changed to -1.98789.
+    y[
+        range(bs), [val] * bs
+    ] = -2.0  # Can we do label smoothin? i.e -2.0 changed to -1.98789.
     return Tensor(y)
 
 
@@ -91,7 +93,9 @@ if __name__ == "__main__":
     output_dir = Path(".").resolve() / "outputs"
     output_dir.mkdir(exist_ok=True)
     # optimizers
-    optim_g = optim.Adam(optim.get_parameters(generator), lr=0.0002, b1=0.5)  # 0.0002 for equilibrium!
+    optim_g = optim.Adam(
+        optim.get_parameters(generator), lr=0.0002, b1=0.5
+    )  # 0.0002 for equilibrium!
     optim_d = optim.Adam(optim.get_parameters(discriminator), lr=0.0002, b1=0.5)
     # training loop
     for epoch in (t := trange(epochs)):
@@ -108,6 +112,11 @@ if __name__ == "__main__":
         if (epoch + 1) % sample_interval == 0:
             fake_images = generator.forward(ds_noise).detach().cpu().numpy()
             fake_images = (fake_images.reshape(-1, 1, 28, 28) + 1) / 2  # 0 - 1 range.
-            save_image(make_grid(torch.tensor(fake_images)), output_dir / f"image_{epoch + 1}.jpg")
-        t.set_description(f"Generator loss: {loss_g / n_steps}, Discriminator loss: {loss_d / n_steps}")
+            save_image(
+                make_grid(torch.tensor(fake_images)),
+                output_dir / f"image_{epoch + 1}.jpg",
+            )
+        t.set_description(
+            f"Generator loss: {loss_g / n_steps}, Discriminator loss: {loss_d / n_steps}"
+        )
     print("Training Completed!")

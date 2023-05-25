@@ -24,15 +24,17 @@ class LLVM:
         target = llvm.Target.from_triple(llvm.get_process_triple())
         LLVM.optimizer = llvm.create_module_pass_manager()
         LLVM.target_machine = target.create_target_machine(
-            opt=2)  # this opt actually can change things. ex: opt=3 means no FMA, opt=2 means FMA
+            opt=2
+        )  # this opt actually can change things. ex: opt=3 means no FMA, opt=2 means FMA
         LLVM.target_machine.add_analysis_passes(LLVM.optimizer)
 
         # TODO: this makes compile times so much faster
         if getenv("LLVMOPT"):
-            llvm.set_option(str(),
-                            '-force-vector-interleave=4')  # this makes sum the same speed as torch, it also doubles the (slow) conv speed
+            llvm.set_option(
+                str(), "-force-vector-interleave=4"
+            )  # this makes sum the same speed as torch, it also doubles the (slow) conv speed
             if DEBUG >= 4:
-                llvm.set_option(str(), '--debug-only=loop-vectorize')
+                llvm.set_option(str(), "--debug-only=loop-vectorize")
             # llvm.set_option(str(), '--debug')
 
             # does this do anything?
@@ -54,7 +56,7 @@ class LLVMProgram:
         self.mod = llvm.parse_assembly(prg)
         self.mod.verify()
         LLVM().optimizer.run(self.mod)
-        self.mod.name = hashlib.sha1(prg.encode('utf-8')).hexdigest()
+        self.mod.name = hashlib.sha1(prg.encode("utf-8")).hexdigest()
         if DEBUG >= 5:
             print(LLVM.target_machine.emit_assembly(self.mod))
         LLVM.engine.add_module(self.mod)

@@ -60,29 +60,47 @@ def equal_distribution(tiny_func, torch_func, numpy_func, shape=(20, 23), alpha=
 class TestRandomness(unittest.TestCase):
     def test_rand(self):
         self.assertFalse(normal_test(Tensor.rand))
-        self.assertTrue(equal_distribution(Tensor.rand, torch.rand, lambda x: np.random.rand(*x)))
+        self.assertTrue(
+            equal_distribution(Tensor.rand, torch.rand, lambda x: np.random.rand(*x))
+        )
 
     def test_randn(self):
         self.assertTrue(normal_test(Tensor.randn))
-        self.assertTrue(equal_distribution(Tensor.randn, torch.randn, lambda x: np.random.randn(*x)))
+        self.assertTrue(
+            equal_distribution(Tensor.randn, torch.randn, lambda x: np.random.randn(*x))
+        )
 
     def test_uniform(self):
         self.assertFalse(normal_test(Tensor.uniform))
-        self.assertTrue(equal_distribution(Tensor.uniform, lambda x: torch.nn.init.uniform_(torch.empty(x), a=-1, b=1),
-                                           lambda x: np.random.rand(*x) * 2 - 1))
+        self.assertTrue(
+            equal_distribution(
+                Tensor.uniform,
+                lambda x: torch.nn.init.uniform_(torch.empty(x), a=-1, b=1),
+                lambda x: np.random.rand(*x) * 2 - 1,
+            )
+        )
 
     def test_scaled_uniform(self):
         self.assertFalse(normal_test(Tensor.scaled_uniform))
-        self.assertTrue(equal_distribution(Tensor.scaled_uniform,
-                                           lambda x: torch.nn.init.uniform_(torch.empty(x), a=-1, b=1) / math.sqrt(
-                                               math.prod(x)),
-                                           lambda x: (np.random.rand(*x) * 2 - 1) / math.sqrt(math.prod(x))))
+        self.assertTrue(
+            equal_distribution(
+                Tensor.scaled_uniform,
+                lambda x: torch.nn.init.uniform_(torch.empty(x), a=-1, b=1)
+                / math.sqrt(math.prod(x)),
+                lambda x: (np.random.rand(*x) * 2 - 1) / math.sqrt(math.prod(x)),
+            )
+        )
 
     def test_glorot_uniform(self):
         self.assertFalse(normal_test(Tensor.glorot_uniform))
         self.assertTrue(
-            equal_distribution(Tensor.glorot_uniform, lambda x: torch.nn.init.xavier_uniform_(torch.empty(x)),
-                               lambda x: (np.random.rand(*x) * 2 - 1) * math.sqrt(6 / (x[0] + math.prod(x[1:])))))
+            equal_distribution(
+                Tensor.glorot_uniform,
+                lambda x: torch.nn.init.xavier_uniform_(torch.empty(x)),
+                lambda x: (np.random.rand(*x) * 2 - 1)
+                * math.sqrt(6 / (x[0] + math.prod(x[1:]))),
+            )
+        )
 
 
 if __name__ == "__main__":

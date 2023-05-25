@@ -16,12 +16,14 @@ class TestConvShapetracker(unittest.TestCase):
         conv(inp).realize()
         test = GlobalCounters.cache
         GlobalCounters.cache = None
-        assert len(test) == 1, f"conv should only have one kernel {[x[0].name for x in test]}"
+        assert (
+            len(test) == 1
+        ), f"conv should only have one kernel {[x[0].name for x in test]}"
         print(test[0][0].prg)
         for arg in test[0][1]:
             print(arg.st)
             assert len(arg.st.views) == 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

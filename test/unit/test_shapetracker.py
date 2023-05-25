@@ -22,7 +22,8 @@ class CheckingShapeTracker:
     def shape(self):
         return self.t.shape
 
-    def simplify(self): self.st.simplify()
+    def simplify(self):
+        self.st.simplify()
 
     def reshape(self, new_shape):
         self.st.reshape(new_shape)
@@ -56,10 +57,12 @@ class CheckingShapeTracker:
         return self.t.flatten()[val]
 
     @property
-    def views(self): return self.st.views
+    def views(self):
+        return self.st.views
 
     @property
-    def contiguous(self): return self.st.contiguous
+    def contiguous(self):
+        return self.st.contiguous
 
     def assert_same(self):
         x = [shapetracker_getitem(self.st, i) for i in range(prod(self.st.shape))]
@@ -82,42 +85,43 @@ class TestSimplifyingShapeTracker(unittest.TestCase):
         self.st.expand((10, 10))
         self.st.reshape((100,))
         print(self.st.views)
-        assert (len(self.st.views) == 2)
+        assert len(self.st.views) == 2
         self.st.reshape((10, 10))
         print(self.st.views)
 
         self.st.simplify()
         print(self.st.views)
-        assert (len(self.st.views) == 1)
+        assert len(self.st.views) == 1
 
     # multiview simplify
     def test_expand_contract_different_shape(self):
         self.st.expand((10, 10))
         self.st.reshape((100,))
         print(self.st.views)
-        assert (len(self.st.views) == 2)
+        assert len(self.st.views) == 2
         self.st.reshape((2, 5, 2, 5))
         print(self.st.views)
 
         self.st.simplify()
         print(self.st.views)
-        assert (len(self.st.views) == 1)
+        assert len(self.st.views) == 1
 
     # multiview simplify
     def test_expand_contract_still_complex(self):
         self.st.expand((10, 10))
         self.st.reshape((100,))
         print(self.st.views)
-        assert (len(self.st.views) == 2)
+        assert len(self.st.views) == 2
         self.st.reshape((5, 20))
 
         self.st.simplify()
         print(self.st.views)
-        assert (len(self.st.views) == 2)
+        assert len(self.st.views) == 2
 
 
 # Tensor.zeros(2, 4).permute(1,0).reshape(2, 4)
 # (d1*4 + d0%4), d1=x//4, d0=x%4 = ((x//4)*4) + (x%4)%4
+
 
 class TestComplexShapeTracker(unittest.TestCase):
     def test_add_1s(self):
@@ -508,5 +512,5 @@ class TestGetContraction(unittest.TestCase):
         self.assertEqual(r, None)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

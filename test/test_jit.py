@@ -34,7 +34,8 @@ class TestJit(unittest.TestCase):
     def test_jit_duplicate_fail(self):
         # the jit doesn't support duplicate arguments
         @TinyJit
-        def add(a, b): return (a + b).realize()
+        def add(a, b):
+            return (a + b).realize()
 
         a = Tensor.randn(10, 10)
         with self.assertRaises(AssertionError):
@@ -63,7 +64,9 @@ class TestJit(unittest.TestCase):
             c = add_array(a, [b])
             if i >= 2:
                 # should fail once jitted since jit can't handle arrays
-                np.testing.assert_equal(np.any(np.not_equal(c.numpy(), a.numpy() + b.numpy())), True)
+                np.testing.assert_equal(
+                    np.any(np.not_equal(c.numpy(), a.numpy() + b.numpy())), True
+                )
             else:
                 np.testing.assert_equal(c.numpy(), a.numpy() + b.numpy())
 
@@ -83,5 +86,5 @@ class TestJit(unittest.TestCase):
             np.testing.assert_equal(c.numpy(), fun.a.numpy() + b.numpy())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
