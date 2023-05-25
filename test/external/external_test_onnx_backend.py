@@ -5,37 +5,41 @@ import numpy as np
 from tinygrad.tensor import Tensor
 from typing import Any, Tuple
 
+
 # pip3 install tabulate
 pytest_plugins = 'onnx.backend.test.report',
 
 from extra.onnx import get_run_onnx
 
-class TinygradModel(BackendRep):
-  def __init__(self, run_onnx, input_names):
-    super().__init__()
-    self.fxn = run_onnx
-    self.input_names = input_names
 
-  def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
-    real_inputs = {k:v for k,v in zip(self.input_names, inputs)}
-    ret = self.fxn(real_inputs, debug=True)
-    return tuple(x.numpy() if isinstance(x, Tensor) else np.array(x) for x in ret.values())
+class TinygradModel(BackendRep):
+    def __init__(self, run_onnx, input_names):
+        super().__init__()
+        self.fxn = run_onnx
+        self.input_names = input_names
+
+    def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
+        real_inputs = {k: v for k, v in zip(self.input_names, inputs)}
+        ret = self.fxn(real_inputs, debug=True)
+        return tuple(x.numpy() if isinstance(x, Tensor) else np.array(x) for x in ret.values())
+
 
 class TinygradBackend(Backend):
-  @classmethod
-  def prepare(cls, model, device):
-    input_all = [x.name for x in model.graph.input]
-    input_initializer = [x.name for x in model.graph.initializer]
-    net_feed_input = [x for x in input_all if x not in input_initializer]
-    print("prepare", cls, device, net_feed_input)
-    run_onnx = get_run_onnx(model)
-    return TinygradModel(run_onnx, net_feed_input)
-  
-  @classmethod
-  def supports_device(cls, device: str) -> bool:
-    return device == "CPU"
+    @classmethod
+    def prepare(cls, model, device):
+        input_all = [x.name for x in model.graph.input]
+        input_initializer = [x.name for x in model.graph.initializer]
+        net_feed_input = [x for x in input_all if x not in input_initializer]
+        print("prepare", cls, device, net_feed_input)
+        run_onnx = get_run_onnx(model)
+        return TinygradModel(run_onnx, net_feed_input)
 
-backend_test = onnx.backend.test.BackendTest(TinygradBackend, __name__) 
+    @classmethod
+    def supports_device(cls, device: str) -> bool:
+        return device == "CPU"
+
+
+backend_test = onnx.backend.test.BackendTest(TinygradBackend, __name__)
 
 # add support for SoftmaxCrossEntropyLoss and NegativeLogLikelihoodLoss
 backend_test.exclude('test_sce_*')
@@ -153,22 +157,22 @@ backend_test.exclude('test_melweightmatrix_*')
 
 # disable model tests for now since they are slow
 if True:
-  for x in backend_test.test_suite:
-    if 'OnnxBackendRealModelTest' in str(type(x)):
-      backend_test.exclude(str(x).split(" ")[0])
+    for x in backend_test.test_suite:
+        if 'OnnxBackendRealModelTest' in str(type(x)):
+            backend_test.exclude(str(x).split(" ")[0])
 else:
-  # model tests all pass!
-  backend_test.include('test_resnet50')
-  backend_test.include('test_inception_v1')
-  backend_test.include('test_inception_v2')
-  backend_test.include('test_densenet121')
-  backend_test.include('test_shufflenet')
-  backend_test.include('test_squeezenet')
-  backend_test.include('test_bvlc_alexnet')
-  backend_test.include('test_zfnet512')
-  backend_test.include('test_vgg19')
+    # model tests all pass!
+    backend_test.include('test_resnet50')
+    backend_test.include('test_inception_v1')
+    backend_test.include('test_inception_v2')
+    backend_test.include('test_densenet121')
+    backend_test.include('test_shufflenet')
+    backend_test.include('test_squeezenet')
+    backend_test.include('test_bvlc_alexnet')
+    backend_test.include('test_zfnet512')
+    backend_test.include('test_vgg19')
 
 globals().update(backend_test.enable_report().test_cases)
 
 if __name__ == '__main__':
-  unittest.main()
+    unittest.main()
