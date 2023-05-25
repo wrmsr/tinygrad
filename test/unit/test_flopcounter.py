@@ -6,6 +6,7 @@ from tinygrad.helpers import DType, dtypes
 
 
 class TestBuffer(NamedTuple):
+    __test__ = False
     shape: Tuple[int, ...]
     dtype: DType
 
