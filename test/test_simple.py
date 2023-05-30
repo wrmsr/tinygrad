@@ -32,3 +32,8 @@ class TestSymbolic(unittest.TestCase):
 
         print(xt.grad.numpy())
         print(yt.grad.numpy())
+
+    def test_cl(self):
+        x = Tensor(list(range(8)), device='GPU')
+        x2 = x * 2
+        print(x2.numpy())

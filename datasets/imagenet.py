@@ -28,7 +28,7 @@ import torchvision.transforms.functional as F
 
 
 def image_load(fn):
-    img = Image.open(fn).convert('RGB')
+    img = Image.open(fn).convert("RGB")
     img = F.resize(img, 256, Image.BILINEAR)
     img = F.center_crop(img, 224)
     ret = np.array(img)
@@ -41,8 +41,8 @@ def iterate(bs=32, val=True, shuffle=True):
     if shuffle:
         random.shuffle(order)
     for i in range(0, len(files), bs):
-        X = [image_load(files[i]) for i in order[i:i + bs]]
-        Y = [cir[files[i].split("/")[-2]] for i in order[i:i + bs]]
+        X = [image_load(files[i]) for i in order[i : i + bs]]
+        Y = [cir[files[i].split("/")[-2]] for i in order[i : i + bs]]
         yield (np.array(X), np.array(Y))
 
 

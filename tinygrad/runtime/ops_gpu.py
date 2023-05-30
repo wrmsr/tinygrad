@@ -105,9 +105,11 @@ class CLProgram:
         self.name, self.argdtypes, self.clprogram = (
             name,
             argdtypes,
-            cl.Program(CL.cl_ctx, CL.cl_ctx.devices, [prg] * len(CL.cl_ctx.devices))
-            if binary
-            else cl.Program(CL.cl_ctx, prg),
+            cl.Program(
+                CL.cl_ctx,
+                CL.cl_ctx.devices,
+                [prg] * len(CL.cl_ctx.devices)
+            ) if binary else cl.Program(CL.cl_ctx, prg),
         )  # type: ignore
         try:
             self._clprg = self.clprogram.build(options=options)

@@ -79,6 +79,8 @@ if __name__ == "__main__":
         if len(sys.argv) >= 2
         else "https://raw.githubusercontent.com/geohot/tinygrad/master/docs/stable_diffusion_by_tinygrad.jpg"
     )
+    url = 'webcam'
+
     if url == "webcam":
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)

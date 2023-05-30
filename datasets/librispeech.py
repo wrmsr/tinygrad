@@ -20,7 +20,9 @@ BASEDIR = pathlib.Path(__file__).parent.parent / "datasets/librispeech"
 with open(BASEDIR / "dev-clean-wav.json") as f:
     ci = json.load(f)
 
-FILTER_BANK = np.expand_dims(librosa.filters.mel(sr=16000, n_fft=512, n_mels=80, fmin=0, fmax=8000), 0)
+FILTER_BANK = np.expand_dims(
+    librosa.filters.mel(sr=16000, n_fft=512, n_mels=80, fmin=0, fmax=8000), 0
+)
 WINDOW = librosa.filters.get_window("hann", 320)
 
 
@@ -28,14 +30,24 @@ def feature_extract(x, x_lens):
     x_lens = np.ceil((x_lens / 160) / 3).astype(np.int32)
 
     # pre-emphasis
-    x = np.concatenate((np.expand_dims(x[:, 0], 1), x[:, 1:] - 0.97 * x[:, :-1]), axis=1)
+    x = np.concatenate(
+        (np.expand_dims(x[:, 0], 1), x[:, 1:] - 0.97 * x[:, :-1]), axis=1
+    )
 
     # stft
-    x = librosa.stft(x, n_fft=512, window=WINDOW, hop_length=160, win_length=320, center=True, pad_mode="reflect")
+    x = librosa.stft(
+        x,
+        n_fft=512,
+        window=WINDOW,
+        hop_length=160,
+        win_length=320,
+        center=True,
+        pad_mode="reflect",
+    )
     x = np.stack((x.real, x.imag), axis=-1)
 
     # power spectrum
-    x = (x ** 2).sum(-1)
+    x = (x**2).sum(-1)
 
     # mel filter bank
     x = np.matmul(FILTER_BANK, x)
@@ -55,10 +67,12 @@ def feature_extract(x, x_lens):
     features_mean = np.zeros((features.shape[0], features.shape[1]), dtype=np.float32)
     features_std = np.zeros((features.shape[0], features.shape[1]), dtype=np.float32)
     for i in range(features.shape[0]):
-        features_mean[i, :] = features[i, :, :x_lens[i]].mean(axis=1)
-        features_std[i, :] = features[i, :, :x_lens[i]].std(axis=1, ddof=1)
+        features_mean[i, :] = features[i, :, : x_lens[i]].mean(axis=1)
+        features_std[i, :] = features[i, :, : x_lens[i]].std(axis=1, ddof=1)
     features_std += 1e-5
-    features = (features - np.expand_dims(features_mean, 2)) / np.expand_dims(features_std, 2)
+    features = (features - np.expand_dims(features_mean, 2)) / np.expand_dims(
+        features_std, 2
+    )
 
     return features.transpose(2, 0, 1), x_lens.astype(np.float32)
 
@@ -71,7 +85,9 @@ def load_wav(file):
 def iterate(bs=1, start=0):
     print(f"there are {len(ci)} samples in the dataset")
     for i in range(start, len(ci), bs):
-        samples, sample_lens = zip(*[load_wav(BASEDIR / v["files"][0]["fname"]) for v in ci[i: i + bs]])
+        samples, sample_lens = zip(
+            *[load_wav(BASEDIR / v["files"][0]["fname"]) for v in ci[i : i + bs]]
+        )
         samples = list(samples)
         # pad to same length
         max_len = max(sample_lens)
@@ -79,7 +95,9 @@ def iterate(bs=1, start=0):
             samples[j] = np.pad(samples[j], (0, max_len - sample_lens[j]), "constant")
         samples, sample_lens = np.array(samples), np.array(sample_lens)
 
-        yield feature_extract(samples, sample_lens), np.array([v["transcript"] for v in ci[i: i + bs]])
+        yield feature_extract(samples, sample_lens), np.array(
+            [v["transcript"] for v in ci[i : i + bs]]
+        )
 
 
 if __name__ == "__main__":

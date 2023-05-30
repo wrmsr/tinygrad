@@ -29,6 +29,10 @@ from tinygrad.ops import (
 from tinygrad.runtime.lib import RawConst, RawBuffer
 
 
+# import os
+# os.environ['GPU'] = '1'
+
+
 # lazy can recurse a lot
 sys.setrecursionlimit(10000)
 
