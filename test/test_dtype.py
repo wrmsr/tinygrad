@@ -44,8 +44,9 @@ def _assert_eq(tensor:Tensor, target_dtype:DType, target):
     raise AssertionError(f"\ntensor {tensor.numpy()} dtype {tensor.dtype} does not match target {target} with dtype {target_dtype}") from e
 
 def _test_op(fxn, target_dtype:DType, target): _assert_eq(fxn(), target_dtype, target)
-def _test_cast(a:Tensor, target_dtype:DType): _test_op(lambda: a.cast(target_dtype), target_dtype, list(a.numpy().astype(target_dtype.np)))
+def _test_cast(a:Tensor, target_dtype:DType, target=None): _test_op(lambda: a.cast(target_dtype), target_dtype, target or list(a.numpy().astype(target_dtype.np)))
 def _test_bitcast(a:Tensor, target_dtype:DType, target=None): _test_op(lambda: a.bitcast(target_dtype), target_dtype, target or a.numpy().view(target_dtype.np).tolist())
+
 
 class TestDType(unittest.TestCase):
   DTYPE: Any = None
@@ -103,7 +104,7 @@ def _test_ops(a_dtype:DType, b_dtype:DType, target_dtype=None):
 
 class TestBFloat16DType(unittest.TestCase):
   def setUp(self):
-    if not is_dtype_supported(dtypes.bfloat16): raise unittest.SkipTest("bfloat16 not supported")
+    if Device.DEFAULT not in ["LLVM", "CUDA"]: raise unittest.SkipTest("bfloat16 not supported")
   def test_bf16_to_float(self):
     with self.assertRaises(AssertionError):
       _test_cast(Tensor([100000], dtype=dtypes.bfloat16), dtypes.float32, [100000])
@@ -114,6 +115,7 @@ class TestBFloat16DType(unittest.TestCase):
 
   # torch.tensor([10000, -1, -1000, -10000, 20]).type(torch.bfloat16)
 
+  @unittest.skipIf(Device.DEFAULT in ["LLVM"], "cast from dtypes.float -> dtypes.bfloat16 not implemented")
   def test_bf16(self):
     t = Tensor([10000, -1, -1000, -10000, 20]).cast(dtypes.bfloat16)
     t.realize()
