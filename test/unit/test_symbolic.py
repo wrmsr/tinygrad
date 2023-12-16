@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import unittest, pickle
-from tinygrad.shape.symbolic import MulNode, SumNode, Variable, NumNode, LtNode, ModNode, sym_render, sym_infer, create_rednode
+from tinygrad.shape.symbolic import MulNode, SumNode, Variable, NumNode, LtNode, ModNode, sym_render, sym_infer, create_rednode, sym_truthy
 
 class TestSymbolicPickle(unittest.TestCase):
   def test_pickle_variable(self):
@@ -69,6 +69,14 @@ class TestSymbolic(unittest.TestCase):
     assert idx1+idx2 == idx2+idx1
     assert idx1+idx2 != idx2
     assert idx1*idx2 == idx2*idx1
+
+  # @unittest.skip("sym_truthy")
+  def test_truthy(self):
+    with self.assertRaises(TypeError):
+      bool(Variable("x", 0, 2))
+    assert sym_truthy(Variable("x", 0, 0) == Variable("y", 0, 0)).is_true
+    assert sym_truthy(Variable("x", 0, 0) == Variable("y", 0, 1)).is_unknown  # FIXME: :|
+    assert sym_truthy(Variable("x", 0, 2) == Variable("y", 3, 5)).is_false
 
   def test_factorize(self):
     a = Variable("a", 0, 8)
@@ -414,11 +422,11 @@ class TestSymbolicSymbolicOps(unittest.TestCase):
     assert (d < a) == 0
     # if it remains as a LtNode, bool is always true and (min, max) == (0, 1)
     assert isinstance((a < c), LtNode) and (a < c).min == 0 and (a < c).max == 1
-    assert a < c
+    assert sym_truthy(a < c).is_not_false
     assert isinstance((a > c), LtNode) and (a > c).min == 0 and (a > c).max == 1
     # same when comparing with a constant
-    assert a < 3 and (a < 3).min == 0 and (a < 3).max == 1
-    assert a > 3 and (a > 3).min == 0 and (a > 3).max == 1
+    assert sym_truthy(a < 3).is_not_false and (a < 3).min == 0 and (a < 3).max == 1
+    assert sym_truthy(a > 3).is_not_false and (a > 3).min == 0 and (a > 3).max == 1
 
   def test_sumnode_mulnode_lt(self):
     a = Variable("a", 1, 2)
