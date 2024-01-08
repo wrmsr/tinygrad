@@ -1,4 +1,5 @@
 from typing import Tuple, Dict, List
+from tinygrad.device import JITRunner
 from tinygrad.dtype import DType
 from tinygrad.tensor import Device, Tensor
 from tinygrad.jit import TinyJit
@@ -21,8 +22,7 @@ web_utils = {
 
 def compile_net(run:TinyJit, special_names:Dict[int,str]) -> Tuple[Dict[str,str],List[Tuple[str,List[str],List[int]]],Dict[str,Tuple[int,DType,int]],Dict[str,Tensor]]:
   functions, bufs, bufs_to_save, statements, bufnum = {}, {}, {}, [], 0
-  for ji in run.jit_cache:
-    fxn = ji.prg
+  def add_jr(ji, fxn):
     functions[fxn.name] = fxn.prg   # NOTE: this assumes all with the same name are the same
     cargs = []
     for i,arg in enumerate(ji.rawbufs):
@@ -31,12 +31,20 @@ def compile_net(run:TinyJit, special_names:Dict[int,str]) -> Tuple[Dict[str,str]
         if key in special_names:
           bufs[key] = (special_names[key], arg.size*arg.dtype.itemsize, arg.dtype, key)
         else:
+          nonlocal bufnum
           bufs[key] = (f"buf_{bufnum}", arg.size*arg.dtype.itemsize, arg.dtype, key)
           bufnum += 1
           if i > 0: bufs_to_save[bufs[key][0]] = arg   # if first usage of a buffer is not an output, and it's not a special name
       cargs.append(bufs[key][0])
     statements.append((fxn.name, cargs, fxn.global_size, fxn.local_size))
-
+  def add_jc(jc):
+    for ji in jc:
+      fxn = ji.prg
+      if isinstance(fxn, JITRunner):
+        add_jr(ji, fxn)
+      else:
+        add_jc(fxn.jit_cache)
+  add_jc(run.jit_cache)
   return functions, statements, {name:(size, dtype, key) for (name,size,dtype,key) in bufs.values()}, bufs_to_save
 
 def jit_model(model, *args) -> Tuple[TinyJit,Dict[int,str]]:
